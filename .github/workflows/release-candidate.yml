@@ -1,0 +1,42 @@
+name: ROOTS release-candidate checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install locked JavaScript dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: JavaScript regression suite
+        run: npm run test:js
+      - name: Backend regression suite
+        run: |
+          python test_api.py
+          python test_security.py
+          python -m py_compile api.py roots_security.py
+      - name: Frontend secret and direct-provider scan
+        shell: bash
+        run: |
+          ! grep -RIE --include='*.js' --include='*.html' --include='*.json' \
+            'AIza[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9_-]{20,}|generativelanguage\.googleapis\.com|GEMINI_API_KEY|OPENAI_API_KEY|bij-gemini-key|APP_CONFIG' www
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=critical

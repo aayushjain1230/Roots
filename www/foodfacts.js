@@ -1,0 +1,149 @@
+/* ============================================================
+   ROOTS — Open Food Facts product lookup (barcodes)
+
+   Looks a barcode up in the free Open Food Facts database (no key, no quota)
+   to get a product's ingredient list — far faster and more reliable than OCR
+   for packaged goods, and it uses ZERO Gemini quota.
+
+   Verified results are cached in localStorage (with a verifiedAt date) so
+   repeat scans are instant and work offline.
+
+   Exposes window.BIJ_FOODFACTS = { lookup(barcode) -> Promise<product>, getCached }.
+   product = { found, code, name, brand, image, lang, english, ingredients[], verifiedAt, fromCache }
+   ============================================================ */
+(function () {
+  "use strict";
+
+  const CACHE_KEY = "bij-product-cache-v1";
+  const CACHE_SCHEMA_VERSION = 2;
+  const CACHE_MAX = 300;
+  const FIELDS = "product_name,brands,ingredients_text,ingredients_text_en,ingredients,lang,allergens,allergens_tags,traces,traces_tags,labels_tags,countries_tags,last_modified_t,image_front_url,image_front_small_url,image_url";
+  const endpoint = (code) =>
+    `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${FIELDS}`;
+
+  function readCache() {
+    try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "{}") || {}; } catch (_) { return {}; }
+  }
+  function writeCache(c) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch (_) { /* quota/full */ }
+  }
+  function getCached(code) {
+    const c = readCache();
+    return c[String(code)] || null;
+  }
+  function putCached(code, product) {
+    const c = readCache();
+    c[String(code)] = product;
+    const codes = Object.keys(c);
+    if (codes.length > CACHE_MAX) {
+      codes.sort((a, b) => String(c[a].verifiedAt || "").localeCompare(String(c[b].verifiedAt || "")));
+      for (let i = 0; i < codes.length - CACHE_MAX; i++) delete c[codes[i]];
+    }
+    writeCache(c);
+  }
+
+  // Preserve raw text and parenthetical subingredients. The Phase 2B parser is
+  // the only authoritative parser; this adapter only selects source evidence.
+  function pickIngredients(p) {
+    if (p.ingredients_text_en && p.ingredients_text_en.trim()) {
+      return {
+        raw: String(p.ingredients_text_en).trim(),
+        originalRaw: String(p.ingredients_text || p.ingredients_text_en).trim(),
+        english: true,
+      };
+    }
+    return {
+      raw: String(p.ingredients_text || "").trim(),
+      originalRaw: String(p.ingredients_text || "").trim(),
+      english: p.lang === "en",
+    };
+  }
+
+  function buildProduct(code, p) {
+    const picked = pickIngredients(p);
+    return {
+      found: true,
+      code: String(code),
+      name: p.product_name || "Unknown product",
+      brand: (p.brands || "").split(",")[0].trim(),
+      image: p.image_front_url || p.image_front_small_url || p.image_url || "",
+      lang: p.lang || "",
+      english: picked.english,
+      rawIngredientText: picked.originalRaw,
+      translatedIngredientText: picked.english ? picked.raw : "",
+      ingredients: picked.raw ? [picked.raw] : [],
+      structuredIngredients: Array.isArray(p.ingredients) ? p.ingredients : [],
+      allergenText: p.allergens || (p.allergens_tags || []).join(", "),
+      tracesText: p.traces || (p.traces_tags || []).join(", "),
+      certifications: Array.isArray(p.labels_tags) ? p.labels_tags : [],
+      region: Array.isArray(p.countries_tags) && p.countries_tags[0] ? p.countries_tags[0] : "US",
+      sourceUpdatedAt: p.last_modified_t ? new Date(Number(p.last_modified_t) * 1000).toISOString() : "",
+      cacheSchemaVersion: CACHE_SCHEMA_VERSION,
+      verifiedAt: new Date().toISOString(),
+    };
+  }
+
+  // Open Food Facts stores codes as EAN-13, but many US products scan as 12-digit
+  // UPC-A. Try the code as decoded, then its zero-padded/trimmed counterpart, before
+  // giving up — otherwise a real product can 404 purely on a digit-count mismatch.
+  function barcodeVariants(code) {
+    const digits = String(code).replace(/\D/g, "");
+    const variants = [digits];
+    if (digits.length === 12) variants.push("0" + digits);
+    if (digits.length === 13 && digits.startsWith("0")) variants.push(digits.slice(1));
+    return variants;
+  }
+
+  async function fetchProduct(code, signal) {
+    const url = endpoint(code);
+    const response = window.ROOTS_NETWORK
+      ? await window.ROOTS_NETWORK.request(url, {
+        headers: { Accept: "application/json" }, signal, timeoutMs: 12000, retries: 1,
+        dedupeKey: `open-food-facts:${code}`, classification: "barcode_lookup",
+      })
+      : await fetch(url, { headers: { Accept: "application/json" }, signal }).then(async (res) => ({ ok: res.ok, status: res.status, data: await res.json() }));
+    if (!response.ok) return { ok: false, status: response.status };
+    const data = response.data;
+    if (!data || data.status !== 1 || !data.product) return { ok: false, notFound: true };
+    return { ok: true, product: data.product };
+  }
+
+  async function lookup(code, options) {
+    options = options || {};
+    code = String(code || "").trim();
+    if (!code) throw new Error("No barcode detected.");
+    const cached = getCached(code);
+
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (cached) return Object.assign({}, cached, { fromCache: true, offline: true });
+      throw Object.assign(new Error("offline"), { code: "BARCODE_LOOKUP_NETWORK" });
+    }
+
+    let networkFailed = false;
+    let httpStatus = null;
+    for (const variant of barcodeVariants(code)) {
+      let result;
+      try {
+        result = await fetchProduct(variant, options.signal);
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        networkFailed = true;
+        continue;
+      }
+      if (!result.ok) {
+        if (result.status) httpStatus = result.status;
+        continue;
+      }
+      const product = buildProduct(code, result.product); // keep the code as originally scanned
+      if (product.rawIngredientText) putCached(code, product); // only cache useful results
+      return product;
+    }
+
+    if (cached) return Object.assign({}, cached, { fromCache: true });
+    if (networkFailed) throw Object.assign(new Error("network"), { code: "BARCODE_LOOKUP_NETWORK" });
+    if (httpStatus) throw Object.assign(new Error("provider"), { code: "BARCODE_LOOKUP_NETWORK", debugMetadata: { httpStatus } });
+    return { found: false, code };
+  }
+
+  window.BIJ_FOODFACTS = { lookup, getCached, CACHE_SCHEMA_VERSION };
+})();

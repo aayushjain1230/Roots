@@ -1,0 +1,67 @@
+(function (root) {
+  "use strict";
+  const P = root.ROOTS_RESTAURANT_PROVIDER, S = root.ROOTS_RESTAURANT_STORAGE;
+  if (!P || !S) throw new Error("Restaurant provider and storage must load before restaurant-search.js");
+
+  const GEO_TIMEOUT = 10000, SEARCH_TIMEOUT = 12000;
+  let activeController = null;
+  const cleanMeal = (value) => String(value || "").replace(/\s+/g, " ").trim().slice(0, 120);
+
+  function geolocationError(error) {
+    const code = error?.code;
+    return {
+      code: error?.restricted ? "permission_restricted" : code === 1 ? "permission_denied" : code === 2 ? "location_unavailable" : code === 3 ? "location_timeout" : "location_unavailable",
+      message: error?.restricted ? "Location access is restricted on this device. Enter an address instead." : code === 1 ? "Location access was denied. Enter an address instead." : code === 3 ? "Location took too long. Try again or enter an address." : "Your location is unavailable. Enter an address instead.",
+    };
+  }
+  function getCurrentLocation(options) {
+    const geolocation = options?.geolocation || (typeof navigator !== "undefined" ? navigator.geolocation : null);
+    if (!geolocation) return Promise.reject({ code: "location_unsupported", message: "Location is not available on this device. Enter an address instead." });
+    return new Promise((resolve, reject) => {
+      geolocation.getCurrentPosition(
+        (position) => {
+          const location = P.validateLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude, label: "Current location" });
+          if (!location) { reject({ code: "location_unavailable", message: "ROOTS could not read this location. Enter an address instead." }); return; }
+          S.addRecentLocation(location);
+          resolve(location);
+        },
+        (error) => reject(geolocationError(error)),
+        { enableHighAccuracy: false, timeout: options?.timeoutMs || GEO_TIMEOUT, maximumAge: 5 * 60 * 1000 }
+      );
+    });
+  }
+  async function autocomplete(query, options) {
+    const text = String(query || "").trim().slice(0, 180);
+    if (text.length < 3) return [];
+    const result = await P.withTimeout(P.getProvider().autocomplete({ query: text, signal: options?.signal }), { timeoutMs: options?.timeoutMs || 8000, signal: options?.signal });
+    return (Array.isArray(result) ? result : []).map((item) => ({ ...P.validateLocation(item), id: String(item.id || ""), label: String(item.label || "").slice(0, 180) })).filter((item) => item.latitude != null && item.label);
+  }
+  async function searchRestaurants(input, options) {
+    const meal = cleanMeal(input?.meal), location = P.validateLocation(input?.location), radius = S.setRadius(input?.radius);
+    if (!meal) throw { code: "meal_required", message: "Choose or enter what you would like to eat." };
+    if (!location) throw { code: "location_required", message: "Choose a location before searching." };
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      const cached = S.getCachedResults(meal, location, radius);
+      if (cached) return { ...cached, cached: true };
+      throw { code: "offline", message: "Restaurant search needs internet. Reconnect and try again." };
+    }
+    activeController?.abort();
+    activeController = new AbortController();
+    const signal = options?.signal || activeController.signal;
+    try {
+      const response = await P.withTimeout(P.getProvider().searchRestaurants({ meal, location, radius, signal }), { timeoutMs: options?.timeoutMs || SEARCH_TIMEOUT, signal });
+      const raw = Array.isArray(response) ? response : response?.restaurants;
+      if (!Array.isArray(raw)) throw new P.RestaurantProviderError(P.ERROR_CODES.INVALID_RESPONSE);
+      const restaurants = raw.map(P.normalizeRestaurant).filter(Boolean);
+      S.addRecentLocation(location);
+      S.addRecentSearch(meal, location, radius);
+      const record = S.cacheResults(meal, location, radius, restaurants, { provider: String(response?.provider || ""), resultCount: restaurants.length });
+      return { ...record, cached: false };
+    } finally {
+      if (signal === activeController?.signal) activeController = null;
+    }
+  }
+  function cancel() { activeController?.abort(); activeController = null; }
+
+  root.ROOTS_RESTAURANT_SEARCH = { cleanMeal, geolocationError, getCurrentLocation, autocomplete, searchRestaurants, cancel };
+})(typeof window !== "undefined" ? window : globalThis);

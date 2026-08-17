@@ -1,0 +1,413 @@
+/*
+ * ROOTS Home — a purpose-built companion surface.
+ * No generic card rules are used here; existing IDs retain their feature handlers.
+ */
+#scanView.home-view.active {
+  width: min(100%, 480px);
+  margin-inline: auto;
+  display: grid;
+  align-items: stretch;
+  gap: 36px;
+  padding-top: 8px;
+}
+
+.home-header {
+  width: 100%;
+  justify-self: stretch;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-header .brand-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.home-header .roots-brand-mark {
+  width: 28px;
+  height: 28px;
+  color: var(--brand-primary);
+}
+
+.home-brand-copy { display: grid; gap: 2px; }
+.home-header .brand-title h1 {
+  margin: 0;
+  font: 700 28px/1 var(--font-display);
+  letter-spacing: -.02em;
+}
+.home-brand-copy small {
+  color: var(--text-muted);
+  font: 500 12px/1.2 var(--font-body);
+}
+
+.home-header-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.home-header-button {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary);
+  transition:
+    transform var(--motion-instant) var(--ease-interaction),
+    background-color var(--motion-fast) var(--ease-interaction),
+    border-color var(--motion-fast) var(--ease-interaction),
+    color var(--motion-fast) var(--ease-interaction);
+}
+
+.home-header-button:active { transform: scale(.94); }
+.home-header-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--motion-fast) var(--ease-interaction);
+}
+
+.home-greeting {
+  width: 100%;
+  justify-self: stretch;
+  margin: -24px 0 -20px;
+  color: var(--text-muted);
+  font: 500 14px/1.4 var(--font-body);
+  text-align: left;
+}
+
+.home-view > .active-profile-summary {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.profile-summary-copy { min-width: 0; display: grid; gap: 5px; }
+.profile-summary-copy > small {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.profile-summary-copy > b {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.profile-summary-restrictions {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.profile-summary-item { display: inline-flex; align-items: center; white-space: nowrap; }
+.profile-summary-item + .profile-summary-item::before { display: none; }
+.profile-summary-item.is-allergy::after {
+  content: "";
+  order: -1;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--avoid);
+}
+.profile-summary-more { margin-top: 3px; color: var(--text-muted); }
+.profile-summary-edit {
+  flex: none;
+  padding-top: 17px;
+  color: var(--brand-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.home-restaurant-row.home-hero {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 170px;
+  padding: 28px;
+  overflow: hidden;
+  display: block;
+  border: 0;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #2B3A55, #1F2737);
+  color: #FFFFFF;
+  text-align: left;
+  box-shadow: 0 18px 38px rgb(31 39 55 / .18);
+  transition:
+    transform var(--motion-instant) var(--ease-interaction),
+    filter var(--motion-fast) var(--ease-interaction),
+    box-shadow var(--motion-fast) var(--ease-interaction);
+}
+.home-restaurant-row.home-hero:active { transform: translateY(0) scale(.99); box-shadow: 0 12px 28px rgb(31 39 55 / .16); }
+.home-hero-copy { position: relative; z-index: 2; display: grid; justify-items: start; gap: 8px; max-width: 245px; }
+.home-hero-copy #home-hero-kicker {
+  color: rgb(255 255 255 / .64);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.home-hero-copy #home-restaurant-title {
+  color: #FFFFFF;
+  font: 700 30px/1.08 var(--font-display);
+  letter-spacing: -.035em;
+}
+.home-hero-copy > span:last-child {
+  max-width: 220px;
+  color: rgb(255 255 255 / .7);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.home-hero-art {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: -5px;
+  width: 180px;
+  height: 170px;
+  fill: none;
+  stroke: #FFFFFF;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .08;
+}
+.home-restaurant-row.home-hero .home-hero-arrow {
+  position: absolute;
+  z-index: 3;
+  right: 24px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--brand-accent);
+  color: #FFFFFF;
+  box-shadow: 0 10px 24px rgb(15 19 27 / .22);
+  font-size: 0;
+  line-height: 1;
+  transition: transform var(--motion-fast) var(--ease-interaction), box-shadow var(--motion-fast) var(--ease-interaction);
+}
+.home-hero-arrow svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: #FFFFFF;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--motion-fast) var(--ease-interaction);
+}
+.home-restaurant-row.home-hero:active .home-hero-arrow { transform: scale(.96); box-shadow: 0 5px 12px rgb(15 19 27 / .18); }
+.home-restaurant-row.home-hero:active .home-hero-arrow svg { transform: translateX(0); }
+
+.home-quick-tools { width: 100%; min-width: 0; justify-self: stretch; display: grid; justify-items: stretch; gap: 10px; }
+.home-quick-tools h2 {
+  margin: 0;
+  color: var(--text-muted);
+  font: 500 12px/1.2 var(--font-body);
+  text-align: left;
+}
+.home-shortcuts {
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 0 0 2px;
+  scrollbar-width: none;
+}
+.home-shortcuts::-webkit-scrollbar { display: none; }
+.home-shortcuts button {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    color var(--motion-fast) var(--ease-interaction),
+    transform var(--motion-instant) var(--ease-interaction);
+}
+.home-shortcut-surface {
+  height: 38px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 6%, transparent);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgb(28 29 31 / .025);
+  transition:
+    background-color var(--motion-fast) var(--ease-interaction),
+    border-color var(--motion-fast) var(--ease-interaction),
+    box-shadow var(--motion-fast) var(--ease-interaction);
+}
+.home-shortcut-surface svg {
+  width: 16px;
+  height: 16px;
+  fill: none !important;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.home-shortcuts button:active { transform: scale(.97); color: var(--brand-primary); }
+
+.home-view .personalized-home:not([hidden]) { display: block !important; }
+.home-personalized-card {
+  padding: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.home-personalized-card > .eyebrow {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.home-continuation {
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 16px;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: 0 10px 28px rgb(28 29 31 / .08);
+  text-align: left;
+  transition:
+    transform var(--motion-instant) var(--ease-interaction),
+    border-color var(--motion-fast) var(--ease-interaction),
+    box-shadow var(--motion-fast) var(--ease-interaction);
+}
+.home-continuation:active { transform: scale(.985); }
+.home-continuation-mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--brand-accent);
+  color: #FFFFFF;
+  transition: background-color var(--motion-fast) var(--ease-interaction);
+}
+.home-continuation-mark svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.home-continuation > span:nth-child(2) { min-width: 0; display: grid; gap: 3px; }
+.home-continuation b { font-size: 15px; line-height: 1.25; }
+.home-continuation small { overflow: hidden; color: var(--text-muted); font-size: 12px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.home-continuation > span:last-child {
+  color: var(--text-muted);
+  font-size: 20px;
+  transition: transform var(--motion-fast) var(--ease-interaction);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .home-header-button:hover {
+    border-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+    background: var(--surface);
+  }
+  #info-btn:hover svg { transform: scale(1.05); }
+  #settings-btn:hover svg { transform: rotate(12deg); }
+
+  .home-restaurant-row.home-hero:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.035);
+    box-shadow: 0 22px 44px rgb(31 39 55 / .22);
+  }
+  .home-restaurant-row.home-hero:hover .home-hero-arrow {
+    transform: scale(1.035);
+    box-shadow: 0 13px 28px rgb(15 19 27 / .25);
+  }
+  .home-restaurant-row.home-hero:hover .home-hero-arrow svg { transform: translateX(2px); }
+
+  .home-shortcuts button:hover {
+    transform: translateY(-1px);
+    color: var(--brand-primary);
+  }
+  .home-shortcuts button:hover .home-shortcut-surface {
+    border-color: color-mix(in srgb, var(--brand-primary) 34%, var(--border));
+    background: color-mix(in srgb, var(--brand-primary) 3%, var(--surface));
+    box-shadow: 0 5px 12px rgb(28 29 31 / .07);
+  }
+
+  .home-continuation:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--brand-primary) 16%, transparent);
+    box-shadow: 0 14px 32px rgb(28 29 31 / .11);
+  }
+  .home-continuation:hover .home-continuation-mark {
+    background: color-mix(in srgb, var(--brand-accent) 92%, white);
+  }
+  .home-continuation:hover > span:last-child { transform: translateX(2px); }
+}
+
+.home-view .scan-runtime { min-height: 0; }
+.home-view .scan-runtime:has(#result_desc:empty) { display: none; }
+
+@media (max-width: 390px) {
+  body[data-active-view="scanView"] .app-main { padding-inline: 24px; }
+  .home-view.active { gap: 32px; }
+  .home-restaurant-row.home-hero { min-height: 164px; padding: 24px; }
+  .home-hero-copy #home-restaurant-title { font-size: 28px; }
+  .home-hero-arrow { right: 20px; bottom: 20px; }
+  .home-shortcuts { margin-right: -24px; padding-right: 24px; }
+}
+
+@media (max-width: 350px) {
+  .home-restaurant-row.home-hero { min-height: 160px; padding: 22px; }
+  .home-hero-copy #home-restaurant-title { font-size: 26px; }
+  .home-hero-copy > span:last-child { max-width: 190px; font-size: 13px; }
+  .home-hero-arrow { width: 48px; height: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-header-button, .home-restaurant-row.home-hero, .home-shortcuts button, .home-continuation { transition: none; }
+}
+
+@media (prefers-contrast: more) {
+  .home-header-button { border-color: currentColor; }
+  .home-continuation { outline: 1px solid var(--text-primary); }
+}

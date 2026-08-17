@@ -1,0 +1,50 @@
+{
+  "name": "but-is-it-jain",
+  "version": "2.0.0",
+  "description": "ROOTS is a cross-platform dietary assistant for clear, personalized food guidance.",
+  "private": true,
+  "scripts": {
+    "test:profile": "node --test tests/profile.test.js",
+    "test:engine": "node --test tests/dietary-engine.test.js",
+    "test:integration": "node --test tests/scan-integration.test.js",
+    "test:home": "node --test tests/home-animation.test.js",
+    "test:review": "node --test tests/image-review.test.js",
+    "test:processing": "node --test tests/scan-processing.test.js",
+    "test:report": "node --test tests/report-view.test.js",
+    "test:production": "node --test tests/production-readiness.test.js",
+    "test:restaurants": "node --test tests/restaurant.test.js",
+    "test:menus": "node --test tests/restaurant-menu.test.js",
+    "test:restaurant-evidence": "node --test tests/restaurant-evidence.test.js",
+    "test:restaurant-ranking": "node --test tests/restaurant-ranking.test.js",
+    "test:restaurant-meal": "node --test tests/restaurant-meal.test.js",
+    "test:restaurant-memory": "node --test tests/restaurant-memory.test.js",
+    "test:restaurant-questions": "node --test tests/restaurant-questions.test.js",
+    "test:dining-assistant": "node --test tests/restaurant-dining-assistant.test.js",
+    "test:travel": "node --test tests/travel-mode.test.js",
+    "test:personalization": "node --test tests/personalization.test.js",
+    "test:performance": "node --test tests/performance-5a.test.js",
+    "test:design": "node --test tests/design-system.test.js",
+    "test:ux": "node --test tests/ux-5c.test.js",
+    "test:rc": "node --test tests/release-candidate.test.js",
+    "test:phase6b": "node --test tests/phase6b.test.js",
+    "test:js": "node --test tests/*.test.js",
+    "dev": "python dev.py",
+    "serve": "python -m http.server 5500 --directory www",
+    "sync": "cap sync",
+    "open:ios": "cap open ios",
+    "open:android": "cap open android",
+    "run:ios": "cap run ios",
+    "run:android": "cap run android",
+    "assets": "capacitor-assets generate --iconBackgroundColor '#2B3A55' --splashBackgroundColor '#F7F7F5'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/haptics": "^6.0.0",
+    "@capacitor/ios": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.2"
+  }
+}
