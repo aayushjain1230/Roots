@@ -28,7 +28,7 @@
     else if(step===1){draft.language=root.ROOTS_TRAVEL.setLanguage($("travel-language").value);}
     else if(step===3&&draft.offline){
       status.textContent="Preparing language pack…"; const profile=root.ROOTS_PROFILE.getActiveProfile(); let pack=root.ROOTS_TRAVEL_PACKS.createPack({language:draft.language,region:draft.destination.countryCode,profile});
-      if(root.navigator?.onLine!==false&&root.BIJ_OCR?.hasCloudKey?.()){try{pack=await root.ROOTS_TRAVEL_PACKS.translatePack(pack);}catch(_){status.textContent="Some phrases remain in English; the verified source text is preserved.";}}
+      if(root.ROOTS_CONNECTIVITY?.get?.().offline!==true&&root.BIJ_OCR?.hasCloudKey?.()){try{pack=await root.ROOTS_TRAVEL_PACKS.translatePack(pack);}catch(_){status.textContent="Some phrases remain in English; the verified source text is preserved.";}}
       const saved=await root.ROOTS_TRAVEL_PACKS.downloadPack(pack); draft.destination.offlinePackIds=[...new Set([...(draft.destination.offlinePackIds||[]),saved.id])]; await root.ROOTS_TRAVEL.setDestination(draft.destination);
     }
     step=Math.min(4,step+1);render();

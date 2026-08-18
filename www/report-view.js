@@ -1,7 +1,6 @@
 (function (root) {
   "use strict";
   const MAX_REASONS = 5;
-  const SAFE_PREVIEW = 12;
   const SEARCH_THRESHOLD = 13;
   const DESCRIPTIONS = Object.freeze({
     gelatin: "An animal-derived protein commonly made from collagen.",
@@ -36,7 +35,7 @@
   const unique = (values) => [...new Set(values.filter(Boolean))];
   const itemName = (item) => clean(item?.displayName || item?.rawName) || "Unknown Ingredient";
   const reasonText = (item) => jainDisplay(item?.reasons?.[0]?.label) || (
-    item?.matchedIngredientId ? "ROOTS identified this ingredient for your selected profile." :
+    item?.status === "SAFE" ? "" : item?.matchedIngredientId ? "ROOTS identified this ingredient for your selected profile." :
       "ROOTS could not confidently identify this ingredient."
   );
   const allItems = (scan) => {
@@ -80,24 +79,35 @@
       }).slice(0, MAX_REASONS);
   }
   function verdictModel(verdict, reason) {
-    if (verdict === "SAFE") return {
-      className: "safe", heading: "Yes, this matches your profile",
-      detail: "No conflicts were found in the available ingredient information.",
-      announcement: "Result: Safe. No conflicts found for your profile.",
+    if (verdict === "MATCH" || verdict === "SAFE") return {
+      className: "safe", heading: "Matches your profile",
+      detail: "No known conflicts were found in the available evidence.",
+      announcement: "Result: Matches your profile. No known conflicts were found in the available evidence.",
       icon: '<path d="m7 12.5 3.2 3.2L17.5 8.5"/>',
     };
-    if (verdict === "AVOID") return {
-      className: "avoid", heading: "No, avoid this product",
+    if (verdict === "CONFLICT" || verdict === "AVOID") return {
+      className: "avoid", heading: "Conflict found",
       detail: clean(reason) || "This product conflicts with your selected profile.",
       announcement: "Result: Avoid. Review the listed conflicts.",
       icon: '<path d="m8 8 8 8M16 8l-8 8"/>',
     };
     return {
-      className: "caution", heading: "Eat with caution",
-      detail: clean(reason) || "Some ingredient information needs confirmation.",
-      announcement: "Result: Eat with caution. Review the listed uncertainties.",
+      className: "caution", heading: "Needs verification",
+      detail: clean(reason) || "Material information is still unresolved.",
+      announcement: "Result: Needs verification. Review the unresolved information.",
       icon: '<path d="M12 7v6m0 4h.01"/><path d="M10.3 3.7 2.1 18a2 2 0 0 0 1.8 3h16.2a2 2 0 0 0 1.8-3L13.7 3.7a2 2 0 0 0-3.4 0Z"/>',
     };
+  }
+
+  function trustHtml(scan) {
+    const attempts = scan?.resolution?.attempts || [];
+    if (!attempts.length) return "";
+    const symbol = { available: "✓", partial: "○", unavailable: "—" };
+    return `<section class="report-trust" aria-labelledby="report-trust-heading">
+      <h2 id="report-trust-heading">How Roots checked this</h2>
+      <ul>${attempts.map((item) => `<li><span aria-hidden="true">${symbol[item.status] || "—"}</span><b>${esc(item.label)}</b><small>${esc(item.status === "available" ? "Available" : item.status === "partial" ? "Partial" : "Unavailable")}</small></li>`).join("")}</ul>
+      ${scan.decision?.status === "VERIFY" ? '<button type="button" class="secondary-btn" data-action="resolve">Resolve this</button>' : ""}
+    </section>`;
   }
   function productHtml(scan) {
     const product = scan.product || {};
@@ -153,7 +163,9 @@
     ).join("")}</div>`;
   }
   function statusMiniIcon(status) {
-    const path = status === "SAFE" ? '<path d="m5 9 3 3 6-7"/>' : status === "AVOID" ? '<path d="m5 5 8 8m0-8-8 8"/>' : '<path d="M9 4v6m0 3h.01"/>';
+    const path = status === "SAFE" ? '<path d="m5 9 3 3 6-7"/>'
+      : status === "AVOID" ? '<path d="m5 5 8 8m0-8-8 8"/>'
+      : '<path d="M9 3.5 16 15H2L9 3.5Z"/><path d="M9 7.5v3.25M9 13.5h.01"/>';
     return `<svg class="mini-status" viewBox="0 0 18 18" aria-hidden="true">${path}</svg>`;
   }
   function itemMatches(item, query) {
@@ -204,15 +216,13 @@
   }
   function sectionHtml(title, items, section, expanded, startIndex) {
     if (!items?.length) return "";
-    const safeLimited = section === "safe" && !state.showAllSafe && items.length > SAFE_PREVIEW;
-    const shown = safeLimited ? items.slice(0, SAFE_PREVIEW) : items;
+    const displayTitle = ({ avoid: "NOT SAFE", caution: "UNCERTAIN", preference: "PREFERENCE", safe: "SAFE" })[section] || title;
     return `<section class="report-section section-${section}" data-section="${section}">
       <h2><button type="button" class="section-toggle" aria-expanded="${expanded}" aria-controls="section-${section}-content">
         <span>${esc(title)} <span>(${items.length})</span></span><span aria-hidden="true">⌄</span>
       </button></h2>
       <div id="section-${section}-content" class="section-content" ${expanded ? "" : "hidden"}>
-        ${shown.map((item, index) => ingredientCardHtml(item, section, startIndex + index)).join("")}
-        ${safeLimited ? `<button type="button" class="show-all-safe" data-action="show-all-safe">Show all ${items.length} safe ingredients</button>` : ""}
+        ${items.map((item, index) => ingredientCardHtml(item, section, startIndex + index)).join("")}
       </div>
     </section>`;
   }
@@ -288,34 +298,45 @@
     const evaluation = scan.evaluation;
     const items = allItems(scan);
     const reason = mainReasons(scan)[0]?.label;
-    const verdict = verdictModel(evaluation.verdict, reason);
+    const verdict = verdictModel(scan.decision?.status || evaluation.verdict, scan.decision?.reason || reason);
+    const offlineLabel = scan.product?.sourceType === "label_photo" && scan.product?.sourceMetadata?.offline;
+    const offlineCachedProduct = scan.product?.sourceType === "barcode" && scan.product?.sourceMetadata?.fromCache && scan.product?.sourceMetadata?.offline;
+    const enrichedOnline = scan.enrichment?.applied === true;
     let offset = 0;
     const avoid = sectionHtml("Ingredients to Avoid", evaluation.avoidItems, "avoid", state.expandedSections.avoid, offset); offset += evaluation.avoidItems.length;
     const caution = sectionHtml("Eat with Caution", evaluation.cautionItems, "caution", state.expandedSections.caution, offset); offset += evaluation.cautionItems.length;
     const preference = sectionHtml("Personal Preferences", evaluation.preferenceItems, "preference", state.expandedSections.preference, offset); offset += evaluation.preferenceItems.length;
     const safe = sectionHtml("Safe Ingredients", evaluation.safeItems, "safe", state.expandedSections.safe, offset);
     rootEl.innerHTML = `<div class="report-view">
-      <header class="report-header"><span data-brand-name>ROOTS</span><button type="button" data-action="close" aria-label="Close report">Close</button></header>
+      <header class="report-header"><span>Scan result</span><button type="button" data-action="close" aria-label="Close report">Close</button></header>
       <main class="report-main">
         ${productHtml(scan)}
-        <p class="report-question">Can you eat this?</p>
+        <p class="report-question sr-only">Can you eat this?</p>
         <section class="final-verdict verdict-${verdict.className}" aria-labelledby="report-verdict-heading">
           <svg class="verdict-symbol" viewBox="0 0 24 24" aria-hidden="true">${verdict.icon}</svg>
-          <div><span class="verdict-label">${esc(evaluation.verdict === "CAUTION" ? "Caution" : evaluation.verdict)}</span>
+          <div><span class="verdict-label">${esc(scan.decision?.status || (evaluation.verdict === "CAUTION" ? "Verify" : evaluation.verdict))}</span>
           <h2 id="report-verdict-heading" tabindex="-1">${esc(verdict.heading)}</h2><p>${esc(verdict.detail)}</p>
           <button type="button" class="text-btn report-explain-primary" data-action="explain-report">Explain in Detail</button></div>
         </section>
+        ${offlineLabel ? '<aside class="report-offline-scope" role="note"><b>Offline label check</b><p>Based on the ingredient label scanned on this device. Online manufacturer and certification verification was unavailable.</p></aside>' : ""}
+        ${offlineCachedProduct ? `<aside class="report-offline-scope" role="note"><b>Cached product information</b><p>This snapshot was last checked ${scan.product.sourceMetadata?.sourceUpdatedAt ? esc(new Date(scan.product.sourceMetadata.sourceUpdatedAt).toLocaleDateString()) : "on an unknown date"}. It may not match the package currently in front of you.</p><button type="button" class="secondary-btn" data-action="verify-current-label">Scan Current Ingredient Label</button></aside>` : ""}
+        ${enrichedOnline ? `<aside class="report-enrichment-scope" role="status"><b>Online evidence added</b><p>${scan.enrichment.decisionChanged ? "Stronger evidence changed this result. Review the updated reasons below." : "The result now includes available structured product evidence; the physical label remains the primary ingredient source."}</p></aside>` : ""}
         <p id="report-announcement" class="sr-only" aria-live="polite">${esc(verdict.announcement)}</p>
         ${reasonChipsHtml(scan)}${warningHtml(scan)}
         ${items.length >= SEARCH_THRESHOLD ? `<div class="report-search"><label for="report-search-input">Search ingredients</label><div><input id="report-search-input" type="search" placeholder="Search ingredients" value="${esc(state.searchQuery)}" maxlength="120"><button type="button" data-action="clear-search">Clear</button></div><p id="report-search-count" aria-live="polite"></p></div>` : ""}
+        <section class="ingredient-analysis-heading" aria-labelledby="ingredient-analysis-title">
+          <h2 id="ingredient-analysis-title">Ingredient analysis</h2>
+          <p>${items.length} ingredients checked</p>
+        </section>
         <div id="report-sections">${avoid}${caution}${preference}${safe}</div>
         <p id="report-no-results" class="empty-state" hidden>No ingredients found.</p>
-        ${originalHtml(scan)}${sourceHtml(scan)}${alternativesHtml(scan)}${actionsHtml(scan)}
+        ${trustHtml(scan)}${originalHtml(scan)}${sourceHtml(scan)}${alternativesHtml(scan)}${actionsHtml(scan)}
         <p class="result-disclaimer">Always check the current package label, especially for allergies.</p>
       </main>${modalShell()}<div id="report-action-status" class="sr-only" aria-live="polite"></div>
     </div>`;
     document.body.classList.add("report-view-active");
     rootEl.style.display = "block";
+    normalizeSectionLabels();
     applySearch(state.searchQuery);
     const heading = rootEl.querySelector("#report-verdict-heading");
     heading?.focus();
@@ -343,6 +364,15 @@
     const count = rootEl.querySelector("#report-search-count");
     if (count) count.textContent = `${visible} ingredient${visible === 1 ? "" : "s"} found`;
     return visible;
+  }
+  function normalizeSectionLabels() {
+    const labels = { avoid: "NOT SAFE", caution: "UNCERTAIN", preference: "PREFERENCE", safe: "SAFE" };
+    rootEl?.querySelectorAll(".report-section").forEach((section) => {
+      const label = labels[section.dataset.section];
+      const button = section.querySelector(".section-toggle");
+      if (!label || !button) return;
+      button.innerHTML = `<span>${esc(label)}</span><span>${section.querySelectorAll(".report-ingredient").length}</span>`;
+    });
   }
   function openModal(title, html, trigger) {
     const modal = rootEl.querySelector("#report-modal");
@@ -463,7 +493,26 @@
       if (context) root.ROOTS_EVIDENCE_EXPLORER?.open?.(context, button);
       return;
     }
+    if (action === "resolve") {
+      root.ROOTS_METRICS?.track?.("resolution_attempted", { decision: state.scan?.decision?.status || "VERIFY" });
+      const questions = state.scan?.resolution?.questions || [];
+      const attempts = state.scan?.resolution?.attempts || [];
+      openModal("Resolve this result", `<p>Roots checked the available sources without turning missing information into a match.</p>
+        <h3>Source checks</h3><ul>${attempts.map((item) => `<li><b>${esc(item.label)}:</b> ${esc(item.status)}</li>`).join("")}</ul>
+        ${questions.length ? `<h3>What to verify</h3><ul>${questions.map((item) => `<li>${esc(item.question)}<small>${esc(item.reason)}</small></li>`).join("")}</ul>` : "<p>No additional deterministic question is available.</p>"}`, button);
+      return;
+    }
     if (action === "original") { openModal("Original Label", originalTextHtml(), button); return; }
+    if (action === "verify-current-label") {
+      root.ROOTS_FORMULATION_TRACKER?.begin?.({
+        code: state.scan.product?.barcode,
+        name: state.scan.product?.productName,
+        rawIngredientText: state.scan.product?.ingredientText?.original || state.scan.product?.rawText?.original,
+        verifiedAt: state.scan.product?.sourceMetadata?.sourceUpdatedAt,
+      });
+      const callback = state.options.onScanCurrentLabel;
+      close(false); callback?.(); return;
+    }
     if (action === "copy-label") {
       const selected = rootEl.querySelector('[data-label-panel]:not([hidden])');
       await root.ROOTS_REPORT_ACTIONS.copyText(selected?.textContent || "");
@@ -519,7 +568,6 @@
       }
       return;
     }
-    if (action === "show-all-safe") { state.showAllSafe = true; render(); return; }
     if (action === "clear-search") {
       const input = rootEl.querySelector("#report-search-input"); if (input) input.value = ""; applySearch(""); return;
     }
@@ -594,7 +642,7 @@
         safe: (scan.evaluation.safeItems || []).length <= 7,
       },
       expandedIngredientIds: new Set(), activeModal: null,
-      saved: root.ROOTS_REPORT_ACTIONS.isSaved(scan), showAllSafe: false,
+      saved: root.ROOTS_REPORT_ACTIONS.isSaved(scan),
     };
     bind();
     render();
@@ -637,7 +685,7 @@
     getState: () => state ? {
       historyRecordId: state.historyRecordId, searchQuery: state.searchQuery,
       expandedSections: { ...state.expandedSections }, activeModal: state.activeModal,
-      saved: state.saved, showAllSafe: state.showAllSafe,
+      saved: state.saved,
     } : null,
     helpers: { esc, mainReasons, evidence, itemMatches, ingredientId, description, nextStep, verdictModel },
   };

@@ -114,7 +114,7 @@ test("camera requests the rear camera, cleans up tracks, and reports permission 
     if (attempts < 3) throw Object.assign(new Error("denied"), { name: "NotAllowedError" });
     return stream;
   }).api;
-  const video = { srcObject: null, async play() {} };
+  const video = { srcObject: null, videoWidth: 1920, videoHeight: 1080, muted: false, playsInline: false, autoplay: false, async play() {} };
   await assert.rejects(camera.start(video), (error) => error.code === "permission_denied");
   await assert.rejects(camera.start(video), (error) => error.code === "permission_denied_permanently");
   const caps = await camera.start(video);
@@ -124,6 +124,23 @@ test("camera requests the rear camera, cleans up tracks, and reports permission 
   assert.equal(requested[0].audio, false);
   camera.stop();
   assert.equal(stopped.length, 1);
+});
+
+test("camera falls back to generic video when preferred rear constraints fail", async () => {
+  const track = { stop() {}, getCapabilities() { return {}; } };
+  const stream = { getTracks: () => [track], getVideoTracks: () => [track] };
+  const requested = [];
+  const camera = loadCamera(async (constraints) => {
+    requested.push(constraints);
+    if (requested.length === 1) throw Object.assign(new Error("constraint"), { name: "OverconstrainedError" });
+    return stream;
+  }).api;
+  const video = { videoWidth: 1280, videoHeight: 720, async play() {} };
+  await camera.start(video);
+  assert.equal(requested.length, 2);
+  assert.equal(requested[1].video, true);
+  assert.equal(camera.getSessionState().state, "CAMERA_READY");
+  camera.stop();
 });
 
 test("unsupported camera has an honest fallback and camera screen is responsive", async () => {

@@ -52,10 +52,9 @@
           : { title: "Recent scans", detail: "View your recently scanned products", target: "activity" };
     target.hidden = false;
     target.innerHTML = `<section class="home-personalized-card" aria-labelledby="home-personalized-title">
-      <p class="eyebrow">Continue</p>
       <button type="button" class="home-continuation" data-home-destination="savedView" data-saved-target="${continuation.target}">
-        <span class="home-continuation-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5"></path><path d="M4 4v4.5h4.5M12 8v4l3 2"></path></svg></span>
-        <span><b id="home-personalized-title">${esc(continuation.title)}</b><small>${esc(continuation.detail)}</small></span><span aria-hidden="true">›</span>
+        <span class="home-continuation-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4z"></path></svg></span>
+        <span><b id="home-personalized-title">Pick up where you left off</b><span class="home-continuation-subject">${esc(continuation.title)}</span><small>${esc(continuation.detail)}</small></span><span aria-hidden="true">›</span>
       </button>
     </section>`;
     return;
@@ -153,7 +152,16 @@
       if (action === "remove") root.ROOTS_PERSONALIZATION.unfavorite("restaurants", existing.id);
       else root.ROOTS_PERSONALIZATION.favorite("restaurants", { ...existing, metadata: { ...existing.metadata, note: card.querySelector("[data-favorite-restaurant-note]").value } });
     });
-    $("home-restaurant-finder")?.addEventListener("click", () => go("restaurantsView"));
+    $("home-restaurant-finder")?.addEventListener("click", (event) => {
+      if (event.currentTarget.dataset.context === "scan-resolution") {
+        const scan = root.ROOTS_SCAN_PIPELINE?.getCurrent?.();
+        if (scan?.evaluation && typeof root.ROOTS_OPEN_SCAN_RESULT === "function") {
+          root.ROOTS_OPEN_SCAN_RESULT(scan);
+          return;
+        }
+      }
+      go("restaurantsView");
+    });
     root.addEventListener?.("roots:personalizationchange", () => { renderHome(); renderSavedFavorites(); renderSavedRestaurants(); });
     root.addEventListener?.("roots:savedproductschange", () => { renderHome(); renderSavedFavorites(); });
     root.addEventListener?.("roots:historychange", renderHome);

@@ -81,7 +81,7 @@
   function normalizeError(error) {
     if (error instanceof RestaurantProviderError) return error;
     if (error?.name === "AbortError") return new RestaurantProviderError(ERROR_CODES.CANCELLED);
-    if (typeof navigator !== "undefined" && navigator.onLine === false) return new RestaurantProviderError(ERROR_CODES.OFFLINE);
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) return new RestaurantProviderError(ERROR_CODES.OFFLINE);
     return new RestaurantProviderError(ERROR_CODES.NETWORK);
   }
 

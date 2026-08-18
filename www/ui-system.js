@@ -156,8 +156,10 @@
     const kind = meaningfulHaptic(button);
     if (kind) haptic(kind);
   });
-  root.addEventListener("offline", () => toast("You’re offline. Saved ROOTS information is still available.", { kind: "warning", duration: 6000 }));
-  root.addEventListener("online", () => toast("You’re back online.", { kind: "success" }));
+  root.ROOTS_CONNECTIVITY?.subscribe?.((connection) => {
+    if (connection.offline) toast("You’re offline. Saved Roots information is still available.", { kind: "warning", duration: 6000 });
+    else if (connection.online) toast("You’re back online.", { kind: "success" });
+  });
 
   if (doc.readyState === "loading") {
     doc.addEventListener("DOMContentLoaded", () => enhanceSemantics(), { once: true });

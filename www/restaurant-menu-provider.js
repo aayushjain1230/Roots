@@ -89,7 +89,7 @@
   }
   function normalizeError(error) {
     if (error instanceof MenuProviderError) return error;
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) {
       return new MenuProviderError(ERROR_CODES.OFFLINE, "Menu retrieval needs an internet connection.");
     }
     return new MenuProviderError(ERROR_CODES.NETWORK, "The menu source could not be reached.");

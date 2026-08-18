@@ -68,15 +68,15 @@ function scan(verdict = "CAUTION") {
 
 test("verdict language is exact for Safe", () => {
   const { context } = loadModules();
-  assert.equal(context.ROOTS_REPORT.renderVerdict("SAFE").heading, "Yes, this matches your profile");
+  assert.equal(context.ROOTS_REPORT.renderVerdict("SAFE").heading, "Matches your profile");
 });
 test("verdict language is exact for Caution", () => {
   const { context } = loadModules();
-  assert.equal(context.ROOTS_REPORT.renderVerdict("CAUTION").heading, "Eat with caution");
+  assert.equal(context.ROOTS_REPORT.renderVerdict("CAUTION").heading, "Needs verification");
 });
 test("verdict language is exact for Avoid", () => {
   const { context } = loadModules();
-  assert.equal(context.ROOTS_REPORT.renderVerdict("AVOID").heading, "No, avoid this product");
+  assert.equal(context.ROOTS_REPORT.renderVerdict("AVOID").heading, "Conflict found");
 });
 test("allergy reasons are prioritized", () => {
   const { context } = loadModules();
@@ -170,4 +170,14 @@ test("report source contains accessible dialog and expandable controls", () => {
 test("report avoids numeric confidence labels", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "www", "report-view.js"), "utf8");
   assert.doesNotMatch(source, /confidence\s*[:=]\s*["'`]?\d/i);
+});
+test("ingredient rows use full status washes and safe ingredients are never truncated", () => {
+  const report = fs.readFileSync(path.join(__dirname, "..", "www", "report-view.js"), "utf8");
+  const script = fs.readFileSync(path.join(__dirname, "..", "www", "script.js"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "..", "www", "styles.css"), "utf8");
+  assert.doesNotMatch(`${report}\n${script}`, /SAFE_PREVIEW|showAllSafe|safe-more|collapseSafe|Show all safe ingredients/);
+  assert.match(css, /\.report-ingredient\.status-avoid\s*\{\s*background:\s*#FBE9E9/);
+  assert.match(css, /\.report-ingredient\.status-caution[\s\S]*background:\s*#FBF0DE/);
+  assert.match(css, /\.report-ingredient\.status-safe\s*\{\s*background:\s*#E7F3EC/);
+  assert.match(script, /function ingredientRowIcon/);
 });

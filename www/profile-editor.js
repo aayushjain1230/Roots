@@ -38,7 +38,7 @@
     }).join("") || "<p>No restrictions selected yet.</p>";
   }
   function homePage() {
-    const categories = R.getCategories();
+    const categories = R.getSelectableCategories?.() || R.getCategories();
     body.innerHTML = `<label class="restriction-search-label" for="restriction-search">Search restrictions</label>
       <input id="restriction-search" class="restriction-search" type="search" maxlength="100" autocomplete="off" placeholder="Try garlic, groundnut, lactose, or IBS">
       <div id="restriction-search-results" class="restriction-search-results" hidden></div>
@@ -58,8 +58,8 @@
       <span>${selected ? "Selected" : "Add"} ›</span></button>`;
   }
   function categoryPage(categoryId) {
-    const category = R.getCategories().find((item) => item.id === categoryId);
-    const items = R.getRestrictions(categoryId);
+    const category = (R.getSelectableCategories?.() || R.getCategories()).find((item) => item.id === categoryId);
+    const items = R.getSelectableRestrictions?.(categoryId) || R.getRestrictions(categoryId);
     const selected = selectedIds();
     const ordered = [...items].sort((a, b) => Number(selected.has(b.id)) - Number(selected.has(a.id)) || a.subgroup.localeCompare(b.subgroup) || a.label.localeCompare(b.label));
     const groups = new Map();
@@ -184,6 +184,7 @@
   $("restriction-editor-save").addEventListener("click", () => {
     const conflicts = C?.detectConflicts(draft) || [];
     draft = P.saveActiveProfile(draft);
+    root.ROOTS_LAUNCH?.mark?.("profile_created");
     localStorage.setItem("roots-restriction-review-v1", new Date().toISOString());
     status.textContent = conflicts.length ? `Saved. ${conflicts.length} overlapping selection${conflicts.length === 1 ? "" : "s"} will remain active and visible in results.` : "Profile saved.";
     close(true);

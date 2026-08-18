@@ -10,7 +10,7 @@ class MemoryStorage {
   removeItem(key) { this.data.delete(key); }
 }
 global.localStorage = new MemoryStorage();
-for (const file of ["profile-definitions.js", "profile.js", "ingredient-knowledge.js", "ingredient-parser.js", "dietary-rules.js", "restaurant-modifier-engine.js", "restaurant-evidence-engine.js", "restaurant-compatibility-report.js"]) {
+for (const file of ["profile-definitions.js", "profile.js", "ingredient-knowledge.js", "ingredient-parser.js", "dietary-rules.js", "effective-rules.js", "restaurant-modifier-engine.js", "restaurant-cross-contact.js", "restaurant-evidence-engine.js", "restaurant-compatibility-report.js"]) {
   require(path.join(__dirname, "..", "www", file));
 }
 const Profiles = global.ROOTS_PROFILE, Evidence = global.ROOTS_RESTAURANT_EVIDENCE, Reports = global.ROOTS_RESTAURANT_REPORT;
@@ -38,6 +38,20 @@ test("confirmed known ingredients with no conflicts are Safe", () => {
   const result = Evidence.evaluateDish(menu([]), dish("sugar"), profile());
   assert.equal(result.verdict, "SAFE");
   assert.equal(result.unknowns.length, 0);
+});
+test("ordinary menu prose cannot become Safe without complete ingredient evidence", () => {
+  const value = dish("sugar", { id: "unreviewed" });
+  value.userEdited = false;
+  const result = Evidence.evaluateDish(menu([value]), value, profile());
+  assert.equal(result.verdict, "NEEDS_CONFIRMATION");
+  assert.ok(result.unknowns.some((item) => item.code === "ingredient_list_incomplete"));
+});
+test("shared fryer facts remain traceable and respect strict cross-contact settings", () => {
+  const p = profile((value) => { value.crossContact.sharedEquipment = "avoid"; });
+  const value = dish("potato", { menuNotes: ["Prepared in a shared fryer"] });
+  const result = Evidence.evaluateDish(menu([value]), value, p);
+  assert.equal(result.verdict, "AVOID");
+  assert.ok(result.crossContact.facts.some((item) => item.id === "shared_fryer"));
 });
 test("missing description propagates Needs Confirmation", () => {
   const result = Evidence.evaluateDish(menu([]), dish(""), profile());

@@ -4,7 +4,7 @@ function local(){const map=new Map();return{getItem:k=>map.has(k)?map.get(k):nul
 function context(extra={}){const ctx={console,Date,Math,JSON,Map,Set,TextEncoder,localStorage:local(),navigator:{onLine:true},...extra};ctx.window=ctx;ctx.globalThis=ctx;vm.createContext(ctx);return ctx;}
 function load(files,extra){const ctx=context(extra);files.forEach(file=>vm.runInContext(source(file),ctx,{filename:file}));return ctx;}
 const profile={id:"p1",name:"Travel profile",updatedAt:"2026-01-01",religiousDiets:[{id:"jain",enabled:true,options:{avoidMeatFishSeafood:true,avoidEggs:true,avoidOnionGarlic:true,avoidAllRootVegetables:false,avoidHoney:true,avoidMushrooms:false}}],lifestyleDiets:[{id:"vegan",enabled:false}],allergies:[{id:"peanut",label:"Peanuts",type:"built_in"}],customRules:[{id:"msg",label:"MSG",severity:"caution"}],crossContact:{sharedEquipment:"avoid"}};
-const dependencies=["travel-storage.js","travel-glossary.js","travel-language-packs.js","travel-mode.js"];
+const dependencies=["connectivity.js","travel-storage.js","travel-glossary.js","travel-language-packs.js","travel-mode.js"];
 const extras={ROOTS_DINING_CARD:{restrictions:()=>["Jain","Peanuts allergy"],generate:()=>({id:"base"})},ROOTS_PROFILE:{getActiveProfile:()=>profile}};
 test("destination selection is manual, versioned, and suggests readable languages",async()=>{
  const ctx=load(dependencies,extras),destination=await ctx.ROOTS_TRAVEL.setDestination({countryCode:"JP",city:"Tokyo"});
@@ -46,7 +46,7 @@ test("translation preserves source, IDs, transliteration, and structure",async()
  const item=translated.sections.dietaryRestrictions[0];assert.match(item.translatedText,/^T:/);assert.ok(item.sourceText);assert.equal(item.transliteration,"guide");
 });
 test("new translation is blocked offline while installed pack remains readable",async()=>{
- const ctx=load(["travel-storage.js","travel-glossary.js","travel-language-packs.js"],{...extras,navigator:{onLine:false}});
+ const ctx=load(["connectivity.js","travel-storage.js","travel-glossary.js","travel-language-packs.js"],{...extras,navigator:{onLine:false}});
  const pack=ctx.ROOTS_TRAVEL_PACKS.createPack({language:"ja",region:"JP",profile});await ctx.ROOTS_TRAVEL_PACKS.downloadPack(pack);
  await assert.rejects(()=>ctx.ROOTS_TRAVEL_PACKS.translatePack(pack),/internet/);assert.ok(await ctx.ROOTS_TRAVEL_PACKS.getForLanguage("ja","JP"));
 });

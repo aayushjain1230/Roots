@@ -76,10 +76,14 @@
   }
   class GeminiMenuOcrProvider {
     async extractPage(page, options) {
+      const file = page.file || page.workingImage;
+      if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) {
+        if (!root.BIJ_OCR?.localOcrAvailable?.()) { const error = new Error("Offline menu reading is unavailable on this device. Enter menu text manually or use a saved menu."); error.code = "local_ocr_unavailable"; throw error; }
+        const local = await root.BIJ_OCR.extractLocal(file, options?.onPageProgress, { signal: options?.signal });
+        return { detectedLanguage: local.detectedLanguage || "unknown", secondaryLanguages: [], originalText: local.originalText, translatedText: "", warnings: (local.extractionWarnings || []).map((item) => item.code), textBlocks: [{ text: local.originalText, confidenceCategory: "uncertain" }], extractionProvider: "local_device_ocr" };
+      }
       const base = clean(root.ROOTS_RUNTIME_CONFIG?.API_BASE_URL, 500).replace(/\/+$/, "");
       if (!base) { const error = new Error("Menu photo reading is unavailable until the OCR service is configured."); error.code = "ocr_provider_unavailable"; throw error; }
-      if (typeof navigator !== "undefined" && navigator.onLine === false) { const error = new Error("Menu photo reading requires internet."); error.code = "offline"; throw error; }
-      const file = page.file || page.workingImage;
       const body = new FormData();
       body.append("file", file, "menu-page.jpg");
       const url = `${base}/v1/ocr/menu`;

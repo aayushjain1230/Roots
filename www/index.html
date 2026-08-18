@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Roots</title>
   <meta name="description" content="Scan food labels and barcodes for clear, personalized dietary guidance.">
-  <meta name="theme-color" content="#F7F7F5">
+  <meta name="theme-color" content="#F5FAEF">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Roots">
   <meta name="referrer" content="no-referrer">
+  <meta name="roots-api-base" content="">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https://world.openfoodfacts.org https://*.openfoodfacts.org https://nominatim.openstreetmap.org https://overpass-api.de; worker-src 'self'; manifest-src 'self'; form-action 'self'">
+  <script src="protocol-guard.js"></script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/app-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -21,25 +23,52 @@
   <script src="ui-system.js" defer></script>
   <script src="saved-navigation.js" defer></script>
   <script src="performance-monitor.js" defer></script>
+  <script src="connectivity.js" defer></script>
+  <script src="sync-queue.js" defer></script>
   <script src="network-client.js" defer></script>
   <script src="runtime-config.js" defer></script>
   <script src="bootstrap.js" defer></script>
   <script src="feature-loader.js" defer></script>
   <script src="brand.js" defer></script>
+  <script src="product-metrics.js" defer></script>
+  <script src="trust-governance.js" defer></script>
+  <script src="launch-growth.js" defer></script>
+  <script src="evidence-model.js" defer></script>
+  <script src="effective-rules.js" defer></script>
+  <script src="decision-engine.js" defer></script>
+  <script src="resolution-engine.js" defer></script>
+  <script src="ask-roots-context.js" defer></script>
+  <script src="dietary-feature-availability.js" defer></script>
   <script src="restriction-definitions.js" defer></script>
   <script src="restriction-taxonomy.js" defer></script>
   <script src="restriction-conflicts.js" defer></script>
   <script src="rule-trace.js" defer></script>
   <script src="profile-definitions.js" defer></script>
+  <script src="jain/jain-profile.js" defer></script>
+  <script src="jain/jain-sources.js" defer></script>
+  <script src="jain/jain-rules.js" defer></script>
+  <script src="jain/jain-knowledge.js" defer></script>
+  <script src="jain/jain-calendar.js" defer></script>
+  <script src="jain/jain-observances.js" defer></script>
+  <script src="jain/jain-effective-profile.js" defer></script>
+  <script src="jain/jain-reliability.js" defer></script>
+  <script src="jain/jain-ingredients.js" defer></script>
+  <script src="jain/jain-search.js" defer></script>
+  <script src="jain/jain-theme.js" defer></script>
+  <script src="jain/jain-offline.js" defer></script>
+  <script src="jain/jain.js" defer></script>
   <script src="profile.js" defer></script>
   <script src="profile-editor.js" defer></script>
   <script src="ingredient-knowledge.js" defer></script>
+  <script src="offline-knowledge.js" defer></script>
   <script src="ingredient-parser.js" defer></script>
   <script src="dietary-rules.js" defer></script>
+  <script src="formulation-tracker.js" defer></script>
   <script src="scan-pipeline.js" defer></script>
-  <!-- Local deployment secret configuration. This file is gitignored; copy config.example.js. -->
+  <!-- Provider credentials are backend-only; the frontend receives only a public API base URL. -->
   <script src="ocr.js" defer></script>
   <script src="foodfacts.js" defer></script>
+  <script src="online-enrichment.js" defer></script>
   <script src="home-animation.js" defer></script>
   <script src="camera-capture.js" defer></script>
   <script src="image-review.js" defer></script>
@@ -65,18 +94,18 @@
       <header class="home-header">
         <div class="brand-title">
           <svg class="roots-brand-mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 10.2v4.1"></path>
-            <path d="M12 14.1c-1.7.7-2.8 1.8-3.5 3.4M12 14.1c1.7.7 2.8 1.8 3.5 3.4M12 16.2v3M8.6 17.4 6.8 20M15.4 17.4l1.8 2.6"></path>
-            <path d="M12 10.4c-3.1-.2-5-1.8-5.4-4.8 3-.4 5.1.8 5.9 3.7"></path>
+            <path d="M12 3v7M12 7.5C9 8.4 7 10.4 5.7 13M12 7.5c3 .9 5 2.9 6.3 5.5"></path>
+            <path d="M9.2 9.2c-.4 3-2 5.2-4.7 7.1M14.8 9.2c.4 3 2 5.2 4.7 7.1M12 10v10"></path>
+            <path d="M12 13.5c-2.5 1.1-4.1 3-5 5.5M12 13.5c2.5 1.1 4.1 3 5 5.5M12 17l-2 4M12 17l2 4"></path>
           </svg>
           <span class="home-brand-copy"><h1 data-brand-name>Roots</h1><small>Can I eat this?</small></span>
         </div>
         <div class="home-header-actions">
           <button id="info-btn" class="home-header-button interactive-control" type="button" aria-label="Information">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 10.5V17M12 7.2h.01"></path></svg>
+            <span class="home-header-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 10.5V17M12 7.2h.01"></path></svg></span><span class="home-header-label">Info</span>
           </button>
           <button id="settings-btn" class="home-header-button interactive-control" type="button" aria-label="Settings">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1A8 8 0 0 0 14.4 5L14 2.5h-4L9.6 5a8 8 0 0 0-2.1 1.9l-2.4-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-1A8 8 0 0 0 9.6 19l.4 2.5h4l.4-2.5a8 8 0 0 0 2.1-1.9l2.4 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"></path></svg>
+            <span class="home-header-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.4 1A8 8 0 0 0 14.4 5L14 2.5h-4L9.6 5a8 8 0 0 0-2.1 1.9l-2.4-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-1A8 8 0 0 0 9.6 19l.4 2.5h4l.4-2.5a8 8 0 0 0 2.1-1.9l2.4 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"></path></svg></span><span class="home-header-label">Settings</span>
           </button>
         </div>
       </header>
@@ -84,17 +113,14 @@
       <p id="home-greeting" class="home-greeting">Welcome back.</p>
       <button id="active-profile-summary" class="active-profile-summary" type="button" aria-label="Edit active dietary profile"></button>
       <button id="home-restaurant-finder" type="button" class="home-restaurant-row home-hero interactive-card" data-haptic="medium">
+        <img id="home-hero-image" class="home-hero-image" alt="" loading="eager" decoding="async" fetchpriority="high">
         <span class="home-hero-copy">
+          <span class="home-now-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"></path></svg>Right now</span>
           <small id="home-hero-kicker">Dinner</small>
           <b id="home-restaurant-title">Find somewhere<br>you can actually eat.</b>
-          <span>Nearby places that fit your dietary profile.</span>
+          <span id="home-hero-support">Nearby places that fit your dietary profile.</span>
         </span>
-        <svg class="home-hero-art" viewBox="0 0 180 170" aria-hidden="true">
-          <circle cx="103" cy="87" r="48"></circle><circle cx="103" cy="87" r="29"></circle>
-          <path d="M42 34v48M34 34v21c0 9 16 9 16 0V34M42 82v54M151 34c-12 15-14 34-2 47v55"></path>
-          <path d="M109 44c10-14 24-14 31-4-6 12-18 17-31 4Z"></path>
-        </svg>
-        <span class="home-hero-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"></path></svg></span>
+        <span class="home-hero-arrow">Explore<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"></path></svg></span>
       </button>
       <section class="home-quick-tools" aria-labelledby="home-quick-tools-title">
         <h2 id="home-quick-tools-title">Quick actions</h2>
@@ -111,8 +137,8 @@
     </section>
 
     <section id="assistantView" class="view ai-view" aria-labelledby="ai-title" hidden aria-hidden="true" inert>
-      <header class="route-header"><div><h2 id="ai-title" tabindex="-1">AI tools</h2><p>Choose the tool that matches what you need.</p></div></header>
-      <nav class="tool-route-list" aria-label="AI tools">
+      <header class="route-header"><div><h2 id="ai-title" tabindex="-1">Ask</h2><p>Choose the tool that matches what you need.</p></div></header>
+      <nav class="tool-route-list" aria-label="Ask tools">
         <button type="button" data-tool-route="askRootsView"><span><b>Ask Roots</b><small>Ask about food or ingredients</small></span><span aria-hidden="true">→</span></button>
         <button type="button" data-tool-route="recipeView"><span><b>Change a Recipe</b><small>Adjust ingredients for your profile</small></span><span aria-hidden="true">→</span></button>
         <button type="button" data-tool-route="mealsView"><span><b>Meal Ideas</b><small>Get ideas based on your profile</small></span><span aria-hidden="true">→</span></button>
@@ -380,7 +406,7 @@
 
   <nav class="bottom-dock" aria-label="Primary navigation">
     <button class="dock-btn active" type="button" data-view="scanView" data-haptic="light" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h3l1.6-2h6.8l1.6 2h3v10H4z"></path><circle cx="12" cy="13.5" r="3.2"></circle></svg><span>Home</span></button>
-    <button class="dock-btn" type="button" data-view="assistantView" data-haptic="light"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3z"></path><path d="M8.5 9h7M8.5 12h4.5"></path></svg><span>AI</span></button>
+    <button class="dock-btn" type="button" data-view="assistantView" data-haptic="light"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3z"></path><path d="M8.5 9h7M8.5 12h4.5"></path></svg><span>Ask</span></button>
     <button id="scan-entry-btn" class="scan-fab" type="button" aria-label="Scan food" data-haptic="medium"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h3l1.6-2h6.8l1.6 2h3v10H4z"></path><circle cx="12" cy="13.5" r="3.2"></circle></svg><span>Scan</span></button>
     <button class="dock-btn" type="button" data-view="restaurantsView" data-haptic="light"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3v8a3 3 0 0 0 3 3V3M4 8h3M7 14v7M15 3v18M15 3c4 1 5 4 5 7v3h-5"></path></svg><span>Restaurants</span></button>
     <button class="dock-btn" type="button" data-view="savedView" data-haptic="light"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v17l-7-4-7 4z"></path></svg><span>Saved</span></button>
@@ -390,9 +416,11 @@
     <div class="modal-content scan-entry-sheet" role="dialog" aria-modal="true" aria-labelledby="scanEntryTitle">
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="scan-entry-heading"><h2 id="scanEntryTitle">Scan</h2><button id="scan-entry-close" class="close" type="button" aria-label="Close scan options">×</button></div>
+      <p id="scan-entry-error" class="form-error" role="alert" hidden></p>
       <button id="scan-barcode-btn" class="scan-entry-option" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5v14M7 5v14M11 5v14M14 5v14M18 5v14M20 5v14"></path></svg><span>Scan Barcode</span><span aria-hidden="true">›</span></button>
       <button id="scan-label-btn" class="scan-entry-option" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h3l1.6-2h6.8l1.6 2h3v10H4z"></path><circle cx="12" cy="13.5" r="3.2"></circle></svg><span>Scan Ingredient Label</span><span aria-hidden="true">›</span></button>
       <button id="scan-photo-btn" class="scan-entry-option" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.5"></circle><path d="m5.5 17 4.5-4 3 2.5 2-2 3.5 3.5"></path></svg><span>Choose Photo</span><span aria-hidden="true">›</span></button>
+      <button id="scan-barcode-photo-btn" class="scan-entry-option" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"></rect><path d="M7 9v6M10 9v6M14 9v6M17 9v6"></path></svg><span>Choose Barcode Photo</span><span aria-hidden="true">›</span></button>
     </div>
   </div>
 
@@ -409,6 +437,7 @@
       <p class="muted">Take a clear photo or choose one from your library. You can review it before ROOTS reads anything.</p>
       <button id="label-take-photo" class="primary-btn" type="button">Take Photo</button>
       <button id="label-choose-library" class="ghost-btn" type="button">Choose from Library</button>
+      <button id="label-enter-manual" class="ghost-btn" type="button">Enter Ingredients Manually</button>
       <p id="label-source-error" class="form-error" role="alert"></p>
       <div id="camera-recovery-actions" hidden>
         <button id="camera-try-again" class="ghost-btn" type="button">Try Again</button>
@@ -486,7 +515,8 @@
       <section class="settings-group"><h3>Appearance</h3><div class="appearance-options" role="radiogroup" aria-label="Appearance"><label><input type="radio" name="appearance" value="system"><span>System</span></label><label><input type="radio" name="appearance" value="light"><span>Light</span></label><label><input type="radio" name="appearance" value="dark"><span>Dark</span></label></div></section>
       <section class="settings-group" aria-labelledby="restaurant-data-title"><h3 id="restaurant-data-title">Restaurant data</h3><p class="muted">These local data controls are separate so one action never erases everything.</p><div class="settings-data-actions"><button id="clear-order-history" class="danger-btn" type="button">Clear Order History</button><button id="delete-saved-meals" class="danger-btn" type="button">Delete Saved Meals</button><button id="delete-restaurant-notes" class="danger-btn" type="button">Delete Restaurant Notes</button><button id="clear-restaurant-cache" class="danger-btn" type="button">Clear Restaurant Cache</button></div></section>
       <section class="settings-group" aria-labelledby="travel-data-title"><div class="section-head with-action"><h3 id="travel-data-title">Travel</h3><button type="button" class="text-btn" data-open-travel-mode>Open Travel Mode</button></div><p class="muted">Manage destinations, offline packs, cards, and recent phrases without changing your dietary profile.</p><div class="settings-data-actions"><button id="clear-travel-destinations" class="danger-btn" type="button">Delete Destinations</button><button id="clear-travel-packs" class="danger-btn" type="button">Delete Offline Packs</button><button id="clear-travel-cards" class="danger-btn" type="button">Delete Travel Cards</button><button id="clear-travel-phrases" class="danger-btn" type="button">Clear Recent Phrases</button></div></section>
-      <section class="settings-links" aria-labelledby="privacy-data-title"><h3 id="privacy-data-title">Privacy and data</h3><div class="settings-info"><span>Offline</span><small>Home, profiles, history, Saved products, cached barcode products, and installed Travel packs work offline. New lookups, label scanning, and AI require internet.</small></div><div class="settings-info"><span>Photo processing</span><small>The selected photo is sent through the protected ROOTS service to the extraction provider only when you scan it. Profile, destination, and saved travel data stay on this device.</small></div></section>
+      <section class="settings-group" aria-labelledby="offline-settings-title"><div class="section-head with-action"><h3 id="offline-settings-title">Offline</h3><span id="offline-connection-state" class="settings-state">Checking…</span></div><div id="offline-settings-summary" class="offline-settings-summary" aria-live="polite"></div><div class="settings-data-actions"><button id="update-offline-data" class="secondary-btn" type="button">Check local data</button><button id="manage-offline-travel" class="secondary-btn" type="button" data-open-travel-mode>Manage Travel Packs</button><button id="clear-offline-cache" class="danger-btn" type="button">Clear Cached Lookups</button></div><p id="offline-settings-status" class="muted" role="status"></p></section>
+      <section class="settings-links" aria-labelledby="privacy-data-title"><h3 id="privacy-data-title">Privacy and data</h3><div class="settings-info"><span>Offline</span><small>Home, profiles, history, Saved products, cached barcode products, local label OCR where supported, and installed Travel packs work offline. New lookups and AI require internet.</small></div><div class="settings-info"><span>Photo processing</span><small>Local OCR stays on this device. When local OCR is unavailable and you choose online label scanning, the selected photo is sent through the protected ROOTS service. Profile, destination, and saved travel data stay on this device.</small></div><label class="settings-info"><span>Share anonymous beta metrics</span><small>Off by default. When enabled, bounded event counts stay on this device and never include foods, dietary rules, questions, photos, or location.</small><input id="beta-metrics-consent" type="checkbox"></label><button id="clear-beta-metrics" class="secondary-btn" type="button">Clear beta metrics</button><p id="beta-metrics-status" class="muted" role="status"></p></section>
       <section class="settings-links" aria-labelledby="about-title"><h3 id="about-title">About</h3><button id="settings-help" type="button"><span>Help and How ROOTS Works</span><small>Learn how scanning and results work</small></button><div class="settings-info"><span>Version</span><small>ROOTS 2.0</small></div><div class="settings-info"><span>Privacy Policy</span><small>Policy link will be added before public release.</small></div></section>
       <button id="save-profile" class="primary-btn" type="button">Done</button>
     </div>
@@ -529,6 +559,10 @@
   </div>
 
   <script src="script.js" defer></script>
+  <script src="profile-ui-compat.js" defer></script>
   <script src="profile-ui.js" defer></script>
+  <script src="runtime-compat.js" defer></script>
+  <script src="runtime-fixes-v2.js" defer></script>
+  <script src="offline-status.js" defer></script>
 </body>
 </html>

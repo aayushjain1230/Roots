@@ -56,6 +56,7 @@ function bigIcon(kind) { return ICONS[kind].replace('class="result-icon"', 'clas
 /* ---------- View navigation ---------- */
 const TOOL_VIEW_IDS = new Set(["askRootsView", "recipeView", "mealsView", "travelView"]);
 let homeScrollPosition = 0;
+let homeHeroTimer = null;
 
 function dockViewFor(viewId) {
   return TOOL_VIEW_IDS.has(viewId) ? "assistantView" : viewId;
@@ -71,17 +72,43 @@ function updateToolProfileContext() {
   });
 }
 
+function homeMealPeriodForHour(hour) {
+  if (hour >= 5 && hour < 11) return "Breakfast";
+  if (hour >= 11 && hour < 17) return "Lunch";
+  return "Dinner";
+}
+
+const HOME_MEAL_IMAGES = Object.freeze({
+  breakfast: "assets/home/breakfast-parfait.png",
+  lunch: "assets/home/lunch-penne.png",
+  dinner: "assets/home/dinner-thali.png",
+});
+
 function updateHomeHero() {
   const hour = new Date().getHours();
   const kicker = document.getElementById("home-hero-kicker");
   const title = document.getElementById("home-restaurant-title");
+  const support = document.getElementById("home-hero-support");
+  const hero = document.getElementById("home-restaurant-finder");
+  const image = document.getElementById("home-hero-image");
   const greeting = document.getElementById("home-greeting");
   if (!kicker || !title) return;
-  const period = hour < 11 ? "Breakfast" : hour < 15 ? "Lunch" : hour < 21 ? "Dinner" : "Late night";
+  const period = homeMealPeriodForHour(hour);
   const greetingText = hour < 12 ? "Good morning." : hour < 18 ? "Good afternoon." : "Good evening.";
-  kicker.textContent = period;
-  title.textContent = "Find somewhere you can actually eat.";
+  kicker.textContent = period.toUpperCase();
+  title.textContent = `${period} nearby`;
+  if (support) support.textContent = "Find dishes that match your profile";
+  const mealKey = period.toLowerCase();
+  if (hero) { hero.dataset.context = "restaurants"; hero.dataset.mealPeriod = mealKey; }
+  if (image && image.getAttribute("src") !== HOME_MEAL_IMAGES[mealKey]) image.src = HOME_MEAL_IMAGES[mealKey];
   if (greeting) greeting.textContent = greetingText;
+  clearTimeout(homeHeroTimer);
+  const next = new Date();
+  if (hour < 5) next.setHours(5, 0, 0, 0);
+  else if (hour < 11) next.setHours(11, 0, 0, 0);
+  else if (hour < 17) next.setHours(17, 0, 0, 0);
+  else { next.setDate(next.getDate() + 1); next.setHours(5, 0, 0, 0); }
+  homeHeroTimer = setTimeout(() => { if (document.body.dataset.activeView === "scanView") updateHomeHero(); }, Math.max(1000, next.getTime() - Date.now() + 100));
 }
 
 async function showView(viewId, options = {}) {
@@ -202,6 +229,16 @@ function showLabelSource(message, recovery) {
   settings.hidden = !recovery?.canOpenSettings;
   openModal(labelSourceModal);
 }
+function openScanEntry(message = "", options = {}) {
+  const error = document.getElementById("scan-entry-error");
+  const barcodePhoto = document.getElementById("scan-barcode-photo-btn");
+  if (error) {
+    error.textContent = message;
+    error.hidden = !message;
+  }
+  if (barcodePhoto) barcodePhoto.hidden = !options.barcodePhoto;
+  openModal(scanEntryModal);
+}
 function hideLabelCamera() {
   window.ROOTS_CAMERA?.stop();
   labelCameraScreen.hidden = true;
@@ -272,6 +309,7 @@ document.getElementById("scan-photo-btn")?.addEventListener("click", () => { clo
 document.getElementById("label-source-close")?.addEventListener("click", () => closeModal(labelSourceModal));
 document.getElementById("label-take-photo")?.addEventListener("click", startLabelCamera);
 document.getElementById("label-choose-library")?.addEventListener("click", () => { closeModal(labelSourceModal); openLabelImagePicker(false); });
+document.getElementById("label-enter-manual")?.addEventListener("click", () => { closeModal(labelSourceModal); showView("scanView"); openIngredientReview(); });
 document.getElementById("camera-try-again")?.addEventListener("click", startLabelCamera);
 document.getElementById("camera-open-settings")?.addEventListener("click", () => window.ROOTS_CAMERA.openSettings());
 document.getElementById("label-camera-cancel")?.addEventListener("click", () => {
@@ -360,7 +398,11 @@ async function legacyHandleFile(file, reviewMetadata) {
     const scan = window.ROOTS_SCAN_PIPELINE.evaluateSource(source, getDietProfile());
     displayResult(scan, { save: scan.state === "EVALUATED" });
   } catch (err) {
-    showScanError(err?.message || "Couldn't read that label. Try a clearer, tighter photo.");
+    const labelOffline = ["OCR_NETWORK", "OCR_LOCAL_UNAVAILABLE"].includes(err?.code) || /offline|network|connect/i.test(String(err?.message || ""));
+    showScanError(
+      labelOffline ? "Label reading needs internet on this device. Enter the ingredients manually, or reconnect and try the photo again." : err?.message || "Couldn't read that label. Try a clearer, tighter photo.",
+      { manualEntry: true }
+    );
   } finally {
     clearScanStatus();
     spinner.classList.add("is-hidden");
@@ -433,7 +475,9 @@ async function handleFile(reviewControl) {
         ];
       }
       const parserStarted = performance.now();
+      const parserTask = window.ROOTS_PERFORMANCE?.startTask?.("ingredient_parsing", { source: job.extracted.extractionProvider || "unknown" });
       job.source = job.source || window.ROOTS_SCAN_PIPELINE.sourceFromOcr(job.extracted);
+      window.ROOTS_PERFORMANCE?.endTask?.(parserTask, { durationMs: performance.now() - parserStarted, status: "complete" });
       if (performance.now() - parserStarted > processing.constants.TIMEOUTS.parser) throw { code: "PARSER_INTERNAL_ERROR" };
       job.source.sourceMetadata = { ...(job.source.sourceMetadata || {}), imageReview: job.reviewMetadata };
       if ((job.reviewMetadata?.warnings || []).includes("crop_too_small")) {
@@ -603,13 +647,9 @@ function waitForVideoReady(video, timeoutMs) {
 
 async function startBarcodeScanner() {
   if (cameraStream || window.ROOTS_SCAN_PROCESSING?.getActiveSession()) return;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    lastCameraOpenError = "camera API unavailable";
-    if (barcodeInput) { barcodeInput.value = ""; barcodeInput.click(); }
-    return;
-  }
   const overlay = document.getElementById("scanner-overlay");
   const video = document.getElementById("scanner-video");
+  const cameraTask = window.ROOTS_PERFORMANCE?.startTask?.("camera_ready", { source: "barcode" });
   try {
     // "ideal" width/height are soft hints (spec: never cause a hard rejection, the browser
     // just does its best) — needed for a high-enough-res crop to actually read a barcode's
@@ -617,13 +657,12 @@ async function startBarcodeScanner() {
     // alongside this and camera-open broke; `advanced` entries with a constraint name a
     // given WebKit build doesn't recognize can reject synchronously (unlike plain "ideal"),
     // so that's the more likely actual culprit — dropped here, keeping just the resolution hint.
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-    });
+    cameraStream = await window.ROOTS_CAMERA.requestStream();
     lastCameraOpenError = null;
   } catch (err) {
     lastCameraOpenError = (err && err.name ? err.name + ": " : "") + (err && err.message ? err.message : String(err));
-    if (barcodeInput) { barcodeInput.value = ""; barcodeInput.click(); } // camera blocked/denied → photo fallback
+    window.ROOTS_PERFORMANCE?.endTask?.(cameraTask, { status: "failed" });
+    openScanEntry(err?.message || "The camera could not start. Choose a barcode photo instead.", { barcodePhoto: true });
     return;
   }
   // Set JS properties too, not just the HTML attributes — more reliably respected than
@@ -636,13 +675,15 @@ async function startBarcodeScanner() {
   try {
     await video.play();
     await waitForVideoReady(video, 4000);
+    window.ROOTS_PERFORMANCE?.endTask?.(cameraTask, { status: "ready" });
   } catch (err) {
+    window.ROOTS_PERFORMANCE?.endTask?.(cameraTask, { status: "failed" });
     // getUserMedia succeeded but the video never actually started rendering frames —
     // don't leave a black screen up, fall back to the still-photo path like any other
     // camera failure.
     lastCameraOpenError = "video failed to start: " + (err && err.message ? err.message : String(err));
     stopBarcodeScanner();
-    if (barcodeInput) { barcodeInput.value = ""; barcodeInput.click(); }
+    openScanEntry("The camera preview did not start. Choose a barcode photo instead.", { barcodePhoto: true });
   }
 }
 
@@ -670,8 +711,10 @@ async function decodeVideoFrame() {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  const detectionTask = window.ROOTS_PERFORMANCE?.startTask?.("barcode_detection", { source: "camera" });
   const { scanImageData } = await ensureZbarWasm();
   const symbols = await scanImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+  window.ROOTS_PERFORMANCE?.endTask?.(detectionTask, { status: symbols?.length ? "detected" : "not_found" });
   const code = symbols && symbols.length ? symbols[0].decode() : null;
   return { code, dataUrl };
 }
@@ -854,12 +897,21 @@ function showScanError(message, opts) {
          <button type="button" class="error-cta" id="error-retry-barcode">Try Again</button>
          <button type="button" class="error-cta-secondary" id="error-scan-label">Or Scan Label</button>
        </div>`
+    : opts.manualEntry
+      ? `<div class="error-actions">
+           <button type="button" class="error-cta" id="error-enter-ingredients">Enter Ingredients Manually</button>
+           <button type="button" class="error-cta-secondary" id="error-choose-photo">Choose Another Photo</button>
+         </div>`
     : "";
   result.innerHTML = `<div class="scan-error">${ICONS.uncertain}<h2>Couldn't scan that</h2><p class="muted">${escapeHtml(message)}</p>${cta}</div>`;
   const retryBtn = document.getElementById("error-retry-barcode");
   if (retryBtn) retryBtn.addEventListener("click", () => startBarcodeScanner());
   const labelBtn = document.getElementById("error-scan-label");
   if (labelBtn) labelBtn.addEventListener("click", () => showLabelSource());
+  const manualBtn = document.getElementById("error-enter-ingredients");
+  if (manualBtn) manualBtn.addEventListener("click", openIngredientReview);
+  const photoBtn = document.getElementById("error-choose-photo");
+  if (photoBtn) photoBtn.addEventListener("click", () => openLabelImagePicker(false));
 }
 
 function ingredientCard(item, kind) {
@@ -943,6 +995,12 @@ function legacyDisplayResult(data) {
 function statusIcon(status) {
   return status === "SAFE" ? ICONS.jain : status === "AVOID" ? ICONS.nonjain : ICONS.uncertain;
 }
+function ingredientRowIcon(status) {
+  const path = status === "SAFE" ? '<path d="m5 12 4 4 10-11"/>'
+    : status === "AVOID" ? '<path d="M6 6l12 12M18 6 6 18"/>'
+    : '<path d="M12 4 21 20H3L12 4Z"/><path d="M12 9v5M12 17h.01"/>';
+  return `<svg class="result-icon row-status-icon" viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
+}
 
 function renderProductHeader(product) {
   if (!product.productName && !product.brand && !product.image) return "";
@@ -974,25 +1032,21 @@ function renderSummaryReasons(evaluation) {
 }
 
 function renderIngredientRow(item, status) {
-  const reason = item.reasons?.[0]?.label || (status === "SAFE" ? "No conflict found for your profile." : "");
+  const reason = item.reasons?.[0]?.label || "";
   const children = item.subingredientResults || [];
   return `<details class="ingredient-row status-${status.toLowerCase()}" ${children.length ? "" : "data-no-children"}>
-    <summary>${statusIcon(status)}<span><b>${escapeHtml(item.displayName || item.rawName || "Ingredient")}</b>
-      <small>${escapeHtml(reason)}</small></span>${children.length ? `<span class="expand-label">Details</span>` : ""}</summary>
+    <summary>${ingredientRowIcon(status)}<span><b>${escapeHtml(item.displayName || item.rawName || "Ingredient")}</b>
+      ${reason ? `<small>${escapeHtml(reason)}</small>` : ""}</span><span class="expand-label" aria-hidden="true">&rsaquo;</span></summary>
     ${children.length ? `<div class="subingredient-list">${children.map((child) =>
-      `<div>${statusIcon(child.status)}<span><b>${escapeHtml(child.displayName)}</b><small>${escapeHtml(child.reasons?.[0]?.label || child.status)}</small></span></div>`
+      `<div class="status-${child.status.toLowerCase()}">${ingredientRowIcon(child.status)}<span><b>${escapeHtml(child.displayName)}</b>${child.reasons?.[0]?.label ? `<small>${escapeHtml(child.reasons[0].label)}</small>` : ""}</span></div>`
     ).join("")}</div>` : ""}
   </details>`;
 }
 
-function renderIngredientSection(title, items, status, collapseSafe) {
+function renderIngredientSection(title, items, status) {
   if (!items?.length) return "";
-  const shown = collapseSafe ? items.slice(0, 8) : items;
   return `<section class="report-block ingredient-section" data-status="${status}">
-    <h3>${escapeHtml(title)}</h3>${shown.map((item) => renderIngredientRow(item, status)).join("")}
-    ${collapseSafe && items.length > shown.length ? `<details class="safe-more"><summary>Show all safe ingredients</summary>${
-      items.slice(shown.length).map((item) => renderIngredientRow(item, status)).join("")
-    }</details>` : ""}
+    <h3>${escapeHtml(title)}</h3>${items.map((item) => renderIngredientRow(item, status)).join("")}
   </section>`;
 }
 
@@ -1042,6 +1096,11 @@ function displayInsufficient(message, action) {
 }
 
 function displayResult(scan, opts) {
+  if (opts?.save) {
+    window.ROOTS_METRICS?.track?.("scan_completed", { decision: scan?.decision?.status || scan?.evaluation?.verdict || "unknown", source: scan?.product?.sourceType || "unknown" });
+    window.ROOTS_LAUNCH?.mark?.("first_scan");
+    if (scan?.decision?.status === "VERIFY") window.ROOTS_METRICS?.track?.("verify_result", { source: scan?.product?.sourceType || "unknown" });
+  }
   result.style.display = "block";
   if (!scan || scan.state === window.ROOTS_SCAN_PIPELINE.INSUFFICIENT_DATA || !scan.evaluation) {
     displayInsufficient(scan?.warnings?.[0]?.message, "Scan Label");
@@ -1061,6 +1120,7 @@ function displayResult(scan, opts) {
         barcodeInput.value = "";
       },
       onReview: openIngredientReview,
+      onScanCurrentLabel: startLabelCamera,
       onAsk: (context, ingredient) => {
         window.ROOTS_REPORT_AI_CONTEXT = context;
         showView("askRootsView", { recordHistory: true, restoreHomeScroll: false });
@@ -1074,6 +1134,13 @@ function displayResult(scan, opts) {
       },
       onRecheck: opts?.onRecheck,
     });
+    if (!opts?.enriched && scan.product?.sourceType === "label_photo" && window.ROOTS_CONNECTIVITY?.get?.().online === true) {
+      window.ROOTS_ONLINE_ENRICHMENT?.enrich?.(scan).then((enrichment) => {
+        if (enrichment?.changed && window.ROOTS_REPORT?.getState?.()) {
+          displayResult(enrichment.scan, { save: false, historyRecordId: historyRecord?.id || opts?.historyRecordId || "", enriched: true });
+        }
+      }).catch(() => {});
+    }
     return;
   }
   const e = scan.evaluation;
@@ -1081,7 +1148,7 @@ function displayResult(scan, opts) {
     ${renderScanWarnings(scan.warnings)}${renderSummaryReasons(e)}
     ${renderIngredientSection("Ingredients to Avoid", e.avoidItems, "AVOID")}
     ${renderIngredientSection("Eat with Caution", e.cautionItems, "CAUTION")}
-    ${renderIngredientSection("Safe Ingredients", e.safeItems, "SAFE", true)}
+    ${renderIngredientSection("Safe Ingredients", e.safeItems, "SAFE")}
     ${renderIngredientSection("Personal Preferences", e.preferenceItems, "PREFERENCE")}
     ${renderEvidenceSummary(scan)}${renderReportActions(scan)}
     <p class="result-disclaimer">Always check the current package label, especially for allergies.</p>`;
@@ -1104,6 +1171,7 @@ function displayResult(scan, opts) {
   });
   if (opts?.save) addHistory(scan);
 }
+window.ROOTS_OPEN_SCAN_RESULT = (scan) => displayResult(scan, { save: false });
 
 /* ---------- History ---------- */
 const HIST_ICON_PENCIL = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>`;
@@ -1174,6 +1242,9 @@ function addHistory(scan) {
   h.unshift(entry);
   saveHistorySafely(h.slice(0, HISTORY_LIMIT));
   window.dispatchEvent(new CustomEvent("roots:historychange"));
+  if (window.ROOTS_CONNECTIVITY?.get?.().online !== true) {
+    try { window.ROOTS_SYNC_QUEUE?.enqueue?.("scan_history", { recordId: entry.id, createdAt: entry.createdAt || entry.scannedAt || new Date().toISOString() }, { id: `sync-history-${entry.id}` }); } catch (_) { /* history remains stored locally */ }
+  }
   return entry;
 }
 
@@ -1285,7 +1356,7 @@ function historyReportHtml(item) {
   return `${renderVerdictCard(scan)}${renderSummaryReasons(scan.evaluation)}
     ${renderIngredientSection("Ingredients to Avoid", scan.evaluation.avoidItems, "AVOID")}
     ${renderIngredientSection("Eat with Caution", scan.evaluation.cautionItems, "CAUTION")}
-    ${renderIngredientSection("Safe Ingredients", scan.evaluation.safeItems, "SAFE", true)}
+    ${renderIngredientSection("Safe Ingredients", scan.evaluation.safeItems, "SAFE")}
     ${renderIngredientSection("Personal Preferences", scan.evaluation.preferenceItems, "PREFERENCE")}
     ${renderEvidenceSummary(scan)}
     <button type="button" class="ghost-btn history-recheck">Check with Current Profile</button>
@@ -1537,20 +1608,35 @@ savedProductsList?.addEventListener("error", (event) => {
 }, true);
 
 /* ---------- Modals ---------- */
-let modalReturnFocus = null;
+const modalReturnFocus = new WeakMap();
 function openModal(m) {
-  modalReturnFocus = document.activeElement;
+  if (!m) return;
+  modalReturnFocus.set(m, document.activeElement);
   if (m === profileModal) {
     document.body.classList.add("full-page-modal-open");
     document.querySelector(".app-main")?.setAttribute("inert", "");
     document.querySelector(".bottom-dock")?.setAttribute("inert", "");
   }
+  m.removeAttribute("inert");
   m.style.display = "flex";
   m.setAttribute("aria-hidden", "false");
   const first = m.querySelector("button, input, textarea, [tabindex]");
   if (first) first.focus();
 }
 function closeModal(m) {
+  if (!m) return;
+  const returnFocus = modalReturnFocus.get(m);
+  // Move focus before hiding the focused control's ancestor. Otherwise the
+  // browser correctly refuses aria-hidden and leaves an inaccessible modal in
+  // the accessibility tree.
+  if (m.contains(document.activeElement)) {
+    if (returnFocus && returnFocus.isConnected && !m.contains(returnFocus) && typeof returnFocus.focus === "function") {
+      returnFocus.focus();
+    } else {
+      document.activeElement?.blur?.();
+    }
+  }
+  m.setAttribute("inert", "");
   m.style.display = "none";
   m.setAttribute("aria-hidden", "true");
   if (m === profileModal) {
@@ -1558,7 +1644,7 @@ function closeModal(m) {
     document.querySelector(".app-main")?.removeAttribute("inert");
     document.querySelector(".bottom-dock")?.removeAttribute("inert");
   }
-  if (modalReturnFocus && typeof modalReturnFocus.focus === "function") modalReturnFocus.focus();
+  modalReturnFocus.delete(m);
 }
 
 const ingredientReviewModal = document.getElementById("ingredientReviewModal");
@@ -1579,16 +1665,29 @@ document.getElementById("restoreIngredientText")?.addEventListener("click", () =
   ingredientReviewText.value = scan?.product?.ingredientText?.original || scan?.product?.rawText?.original || "";
 });
 document.getElementById("saveIngredientReview")?.addEventListener("click", () => {
-  const scan = window.ROOTS_SCAN_PIPELINE.editCurrentIngredientText(ingredientReviewText.value);
+  const text = ingredientReviewText.value.trim();
+  const current = window.ROOTS_SCAN_PIPELINE.getCurrent();
+  const scan = current
+    ? window.ROOTS_SCAN_PIPELINE.editCurrentIngredientText(text)
+    : text
+      ? window.ROOTS_SCAN_PIPELINE.evaluateSource({ sourceType: "manual_label", rawIngredientText: text, originalText: text }, getDietProfile())
+      : null;
   closeIngredientReview();
   if (scan) displayResult(scan, { save: false });
   else displayInsufficient("Enter the ingredient list to continue.", "Scan Label");
 });
 
 document.getElementById("settings-btn").addEventListener("click", openProfile);
+const betaMetricsConsent=document.getElementById("beta-metrics-consent"),betaMetricsStatus=document.getElementById("beta-metrics-status");
+if(betaMetricsConsent){betaMetricsConsent.checked=window.ROOTS_METRICS?.consent?.()===true;betaMetricsConsent.addEventListener("change",()=>{const enabled=window.ROOTS_METRICS?.setConsent?.(betaMetricsConsent.checked);if(betaMetricsStatus)betaMetricsStatus.textContent=enabled?"Anonymous beta metrics are enabled on this device.":"Beta metrics are off and local metrics were cleared.";});}
+document.getElementById("clear-beta-metrics")?.addEventListener("click",()=>{window.ROOTS_METRICS?.clear?.();if(betaMetricsStatus)betaMetricsStatus.textContent="Local beta metrics cleared.";});
 document.getElementById("active-profile-summary")?.addEventListener("click", openProfile);
-document.getElementById("scan-entry-btn")?.addEventListener("click", startLabelCamera);
+document.getElementById("scan-entry-btn")?.addEventListener("click", () => openScanEntry());
 document.getElementById("scan-entry-close")?.addEventListener("click", () => closeModal(scanEntryModal));
+document.getElementById("scan-barcode-photo-btn")?.addEventListener("click", () => {
+  closeModal(scanEntryModal);
+  if (barcodeInput) { barcodeInput.value = ""; barcodeInput.click(); }
+});
 document.getElementById("camera-mode-barcode")?.addEventListener("click", () => {
   window.ROOTS_CAMERA?.stop?.();
   labelCameraScreen.hidden = true;

@@ -39,6 +39,7 @@
       allergenLabels: (line.match(new RegExp(ALLERGEN.source, "ig")) || []).map(clean),
       menuNotes: [], sourcePageIds: pageId ? [pageId] : [],
       extraction: { method: method || "text", evidenceLevel: "likely", warnings: [] },
+      ingredientEvidence: { complete: false, source: "menu_description" },
       userEdited: false, originalExtracted: null,
     };
   }
@@ -103,6 +104,10 @@
       (Array.isArray(section.items) ? section.items : []).forEach((item, itemIndex) => {
         const dish = dishFromLine(item.nameOriginal || "Untitled dish", sectionId, itemIndex, null, item.extraction?.method);
         Object.assign(dish, item, { id: clean(item.id, 180) || dish.id, sectionId, order: itemIndex });
+        dish.ingredientEvidence = {
+          complete: item.ingredientEvidence?.complete === true || item.ingredientsComplete === true,
+          source: clean(item.ingredientEvidence?.source, 80) || "menu_description",
+        };
         dish.price = item.price && typeof item.price === "object" ? item.price : price(item.price?.display || "");
         normalized.items.push(dish);
       });

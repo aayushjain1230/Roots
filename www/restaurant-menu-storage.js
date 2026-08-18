@@ -53,10 +53,11 @@
     return read().filter((menu) => menu?.restaurantId === restaurantId).map(migrate).filter(Boolean)
       .sort((a, b) => Date.parse(b.lastNormalizedAt) - Date.parse(a.lastNormalizedAt));
   }
+  function getAll() { return read().map(migrate).filter(Boolean); }
   function remove(menuId) { return write(read().filter((menu) => menu?.id !== menuId)); }
   function clearExpired(now) {
     const items = read().filter((menu) => menu.savedByUser || menu.reviewedByUser || getFreshness(menu, now).state !== "stale");
     write(items); return items.length;
   }
-  root.ROOTS_MENU_STORAGE = { key: KEY, limit: LIMIT, save, get, getByRestaurant, remove, getFreshness, clearExpired, migrate };
+  root.ROOTS_MENU_STORAGE = { key: KEY, limit: LIMIT, save, get, getByRestaurant, getAll, remove, getFreshness, clearExpired, migrate };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -9,7 +9,7 @@
     const context = options?.context;
     const cached = context && root.ROOTS_EXPLANATION_CACHE?.get(context, `translation:${explanation.mode}`, code, 1);
     if (cached) return cached;
-    if (root.navigator?.onLine === false || !root.BIJ_OCR?.translateStructured) throw new Error("Connect to translate this explanation.");
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true || !root.BIJ_OCR?.translateStructured) throw new Error("Connect to translate this explanation.");
     const output = await root.BIJ_OCR.translateStructured(explanation, languageName(code), { signal: options?.signal, format: "explanation" });
     const result = validate(explanation, output, code);
     if (!result) throw new Error("The translation could not be validated.");

@@ -1,12 +1,14 @@
 (function (root) {
   "use strict";
   const source = root.ROOTS_RESTRICTION_DEFINITIONS;
+  const availability = root.ROOTS_DIETARY_FEATURES;
   if (!source) throw new Error("Restriction definitions must load before the taxonomy.");
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const byId = new Map(source.restrictions.map((item) => [item.id, item]));
   const categories = source.categories.map((category) => Object.freeze({
     ...category,
     restrictionCount: source.restrictions.filter((item) => item.categoryId === category.id).length,
+    availableCount: source.restrictions.filter((item) => item.categoryId === category.id && availability?.isSelectableRestriction?.(item) !== false).length,
   }));
   const normalize = (value) => String(value || "").normalize("NFKC").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   let searchIndex = null;
@@ -29,7 +31,7 @@
     if (!term) return [];
     const categoryId = options?.categoryId;
     return buildSearchIndex()
-      .filter((entry) => (!categoryId || entry.restriction.categoryId === categoryId) && entry.text.includes(term))
+      .filter((entry) => (!categoryId || entry.restriction.categoryId === categoryId) && entry.text.includes(term) && availability?.isSelectableRestriction?.(entry.restriction) !== false)
       .map((entry) => clone(entry.restriction));
   }
   function explicitSelections(profile) {
@@ -88,9 +90,13 @@
     });
   }
   root.ROOTS_RESTRICTIONS = {
+    // Full taxonomy remains public for migration, diagnostics, and future rollout.
     getCategories: () => clone(categories),
+    getSelectableCategories: () => clone(categories.filter((item) => item.availableCount > 0)),
     getRestriction: (id) => byId.has(id) ? clone(byId.get(id)) : null,
     getRestrictions: (categoryId) => clone(source.restrictions.filter((item) => !categoryId || item.categoryId === categoryId)),
+    getSelectableRestrictions: (categoryId) => clone(source.restrictions.filter((item) => (!categoryId || item.categoryId === categoryId) && availability?.isSelectableRestriction?.(item) !== false)),
+    getUnavailableSelected: (profile) => getSelected(profile).filter((item) => availability?.isAvailable?.(item.id) === false),
     search,
     getSelected,
     validateSelection,

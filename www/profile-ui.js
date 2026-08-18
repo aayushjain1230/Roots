@@ -3,6 +3,7 @@
 
   const P = window.ROOTS_PROFILE;
   const D = P.definitions;
+  const F = window.ROOTS_DIETARY_FEATURES;
   const $ = (id) => document.getElementById(id);
   const modal = $("onboardingModal");
   const body = $("onboarding-body");
@@ -33,13 +34,22 @@
   function jainPanel() {
     const item = draft.religiousDiets.find((entry) => entry.id === "jain");
     if (!item.enabled) return "";
+    draft.jain = window.ROOTS_JAIN_PROFILE?.getSettings?.(draft) || draft.jain || {};
     const labels = {
       avoidMeatFishSeafood: "Meat, fish, and seafood", avoidEggs: "Eggs", avoidOnionGarlic: "Onion and garlic",
       avoidAllRootVegetables: "All root vegetables", avoidHoney: "Honey", avoidAnimalDerivedAdditives: "Animal-derived additives",
       avoidFermentedIngredients: "Fermented ingredients", avoidMushrooms: "Mushrooms", avoidArtificialAdditives: "Artificial additives",
     };
-    return `<div class="profile-subpanel"><div class="section-head with-action"><h3>Customize your Jain profile</h3><button type="button" class="text-btn" data-restore="jain">Restore defaults</button></div><p class="muted">Jain practices vary. Adjust these rules to match what you follow.</p><div class="compact-options">${Object.entries(labels).map(([key, label]) =>
-      `<label class="compact-check"><input type="checkbox" data-jain-option="${key}" ${item.options[key] ? "checked" : ""}><span>Avoid ${label.toLowerCase()}</span></label>`).join("")}</div></div>`;
+    const option = (key, label, current) => `<option value="${key}" ${current === key ? "selected" : ""}>${label}</option>`;
+    const effective = window.ROOTS_JAIN_EFFECTIVE_PROFILE?.getEffectiveProfile?.({ profile: draft });
+    return `<div class="profile-subpanel jain-settings-panel"><div class="section-head with-action"><h3>Jain Settings</h3><button type="button" class="text-btn" data-restore="jain">Restore defaults</button></div><p class="muted">Jain practices vary. Adjust these rules to match what you follow.</p>
+      <label class="settings-info"><span>Tradition</span><select data-jain-setting="tradition" aria-label="Jain tradition">${option("shwetambar", "Shwetambar", draft.jain.tradition)}${option("digambar", "Digambar", draft.jain.tradition)}${option("not_sure", "Not sure", draft.jain.tradition)}</select></label>
+      <label class="settings-info"><span>Mother tongue</span><select data-jain-setting="motherTongue" aria-label="Mother tongue">${option("gujarati", "Gujarati", draft.jain.motherTongue)}${option("kutchi", "Kutchi", draft.jain.motherTongue)}${option("hindi", "Hindi", draft.jain.motherTongue)}${option("english", "English", draft.jain.motherTongue)}${option("other", "Other", draft.jain.motherTongue)}</select></label>
+      <label class="settings-info"><span>Festival appearance</span><select data-jain-setting="festivalAppearance" aria-label="Festival appearance">${option("subtle", "Subtle", draft.jain.festivalAppearance)}${option("full", "Full", draft.jain.festivalAppearance)}${option("off", "Off", draft.jain.festivalAppearance)}</select></label>
+      <details class="profile-subdetails" open><summary>My food rules</summary><div class="compact-options">${Object.entries(labels).map(([key, label]) =>
+      `<label class="compact-check"><input type="checkbox" data-jain-option="${key}" ${item.options[key] ? "checked" : ""}><span>Avoid ${label.toLowerCase()}</span></label>`).join("")}</div></details>
+      <details class="profile-subdetails"><summary>My Jain Rules</summary><div class="review-list"><div><span>Tradition</span><b>${esc(draft.jain.tradition.replace("_", " "))}</b></div><div><span>Permanent food settings</span><b>${Object.entries(labels).filter(([key]) => item.options[key]).map(([, label]) => label).join(", ") || "None"}</b></div><div><span>Current observance</span><b>${effective?.activeObservance ? `${esc(effective.activeObservance.label)} · Day ${effective.activeObservance.day}` : "None"}</b></div><div><span>Temporary rules</span><b>${effective?.observanceRules?.length || 0} active</b></div></div></details>
+      <p class="phase-note">Fasting and time-of-day reminders are a separate practice layer and do not change packaged-food compatibility.</p></div>`;
   }
   function hinduVegetarianPanel() {
     const item = draft.religiousDiets.find((entry) => entry.id === "hindu_vegetarian");
@@ -50,18 +60,14 @@
   function religiousStep() {
     const none = !draft.religiousDiets.some((item) => item.enabled);
     return `<h2 id="onboarding-title" tabindex="-1">Religious preferences</h2><p class="muted">Select any dietary traditions you follow.</p><div class="profile-options">
-      ${D.religiousDiets.map((item) => card(item.id, item.label, item.description, enabled(draft.religiousDiets, item.id), "religious")).join("")}
+      ${D.religiousDiets.filter((item) => F?.isAvailable?.(item.id) !== false).map((item) => card(item.id, item.label, item.description, enabled(draft.religiousDiets, item.id), "religious")).join("")}
       ${card("none", "None", "No religious dietary preference", none, "religious")}
     </div>${jainPanel()}${hinduVegetarianPanel()}${(enabled(draft.religiousDiets, "halal") || enabled(draft.religiousDiets, "kosher")) ? `<p class="phase-note">Source-dependent ingredients may still require certification or manufacturer confirmation.</p>` : ""}`;
   }
   function lifestyleStep() {
-    const none = !draft.lifestyleDiets.some((item) => item.enabled);
-    const conflict = enabled(draft.lifestyleDiets, "vegan") && enabled(draft.lifestyleDiets, "pescatarian");
-    return `<h2 id="onboarding-title" tabindex="-1">Lifestyle preferences</h2><p class="muted">Choose any eating styles that apply to you.</p><div class="profile-options">
-      ${D.lifestyleDiets.map((item) => card(item.id, item.label, "", enabled(draft.lifestyleDiets, item.id), "lifestyle")).join("")}
-      ${card("none", "None", "No lifestyle preference", none, "lifestyle")}
-    </div>${conflict ? `<p class="phase-note">Vegan is stricter than Pescatarian. ROOTS will apply the stricter rule.</p>` : ""}
-    ${enabled(draft.lifestyleDiets, "gluten_free") ? `<label class="compact-check standalone"><input type="checkbox" id="gluten-strict" ${draft.lifestyleDiets.find((item) => item.id === "gluten_free").options.strictCrossContact ? "checked" : ""}><span>Use strict cross-contact handling for gluten-free</span></label>` : ""}`;
+    return `<h2 id="onboarding-title" tabindex="-1">Launch dietary support</h2>
+      <p class="muted">This release specializes in configurable Jain rules, the major food allergens, and custom ingredient avoids.</p>
+      <p class="phase-note">Additional dietary modes remain preserved for future ROOTS rollouts.</p>`;
   }
   function allergiesStep() {
     const builtIns = new Set(draft.allergies.filter((item) => item.type === "built_in").map((item) => item.id));
@@ -149,13 +155,13 @@
   }
 
   function summarySections(profile) {
-    const names = (entries, defs) => entries.filter((item) => item.enabled).map((item) => defs.find((def) => def.id === item.id)?.label || item.id);
+    const names = (entries, defs) => entries.filter((item) => item.enabled && F?.isAvailable?.(item.id) !== false).map((item) => defs.find((def) => def.id === item.id)?.label || item.id);
     const religious = names(profile.religiousDiets, D.religiousDiets);
     const lifestyle = names(profile.lifestyleDiets, D.lifestyleDiets);
     const rules = profile.customRules.map((item) => `${item.severity === "avoid" ? "Avoid" : item.severity === "caution" ? "Caution" : "Preference"} ${item.label}`);
     return [
       { label: "Religious preferences", value: religious.join(", ") || "None", step: 1 },
-      { label: "Lifestyle preferences", value: lifestyle.join(", ") || "None", step: 2 },
+      { label: "Launch dietary modes", value: lifestyle.join(", ") || "None", step: 2 },
       { label: "Allergies", value: profile.allergies.map((item) => item.label).join(", ") || "None", step: 3 },
       { label: "Cross-contact", value: profile.crossContact.preset[0].toUpperCase() + profile.crossContact.preset.slice(1), step: 4 },
       { label: "Dislikes", value: profile.dislikes.map((item) => item.label).join(", ") || "None", step: 4 },
@@ -170,10 +176,10 @@
     const labelFor = (id, list) => list.find((item) => item.id === id)?.label || id;
     const allergies = activeProfile.allergies.map((item) => ({ label: `${item.label} allergy`, allergy: true }));
     const religious = activeProfile.religiousDiets
-      .filter((item) => item.enabled)
+      .filter((item) => item.enabled && F?.isAvailable?.(item.id) !== false)
       .map((item) => ({ label: labelFor(item.id, definitions.religiousDiets) }));
     const medicalIds = new Set(["dairy_free", "egg_free", "gluten_free"]);
-    const enabledLifestyle = activeProfile.lifestyleDiets.filter((item) => item.enabled);
+    const enabledLifestyle = activeProfile.lifestyleDiets.filter((item) => item.enabled && F?.isAvailable?.(item.id) !== false);
     const medical = enabledLifestyle
       .filter((item) => medicalIds.has(item.id))
       .map((item) => ({ label: labelFor(item.id, definitions.lifestyleDiets) }));
@@ -181,7 +187,7 @@
       .filter((item) => !medicalIds.has(item.id))
       .map((item) => ({ label: labelFor(item.id, definitions.lifestyleDiets) }));
     const typeOrder = { allergy: 1, religious: 2, medical: 3, digestive: 4, intolerance: 4, lifestyle: 5, sensitivity: 6, preference: 7 };
-    const expanded = (activeProfile.restrictions || []).filter((item) => item.enabled !== false)
+    const expanded = (activeProfile.restrictions || []).filter((item) => item.enabled !== false && F?.isSelectableRestriction?.(item) !== false)
       .map((item) => window.ROOTS_RESTRICTIONS?.getRestriction(item.id)).filter(Boolean)
       .sort((a, b) => (typeOrder[a.type] || 20) - (typeOrder[b.type] || 20))
       .map((item) => ({ label: item.shortLabel, allergy: item.type === "allergy" }));
@@ -192,7 +198,7 @@
     const restrictions = visible.length
       ? `${visible.map((item) => `<span class="profile-summary-item${item.allergy ? " is-allergy" : ""}">${esc(item.label)}</span>`).join("")}${remaining ? `<span class="profile-summary-item profile-summary-more" aria-label="${remaining} more dietary rules">+${remaining}</span>` : ""}`
       : '<span class="profile-summary-empty">No dietary rules selected</span>';
-    $("active-profile-summary").innerHTML = `<span class="profile-summary-copy"><small>Scanning for</small><b>${esc(activeProfile.name)}</b><span class="profile-summary-restrictions">${restrictions}</span></span><span class="profile-summary-edit">Manage</span>`;
+    $("active-profile-summary").innerHTML = `<span class="profile-summary-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 5 39 11v11c0 10-6.1 17.2-15 21-8.9-3.8-15-11-15-21V11Z"></path><path d="m17 24 5 5 10-11"></path></svg></span><span class="profile-summary-copy"><small>Scanning for</small><b>${esc(activeProfile.name)}</b></span><span class="profile-summary-edit">Manage <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"></path></svg></span><span class="profile-summary-restrictions">${restrictions}</span>`;
     $("active-profile-summary").setAttribute("aria-label", `Scanning for ${activeProfile.name}. Edit dietary profile.`);
     $("profile-settings-summary").innerHTML = summarySections(activeProfile).map((section) =>
       `<button type="button" data-edit-step="${section.step}"><span>${esc(section.label)}</span><b>${esc(section.value)}</b><span aria-hidden="true">›</span></button>`).join("");
@@ -248,6 +254,12 @@
   });
   body.addEventListener("change", (event) => {
     if (event.target.dataset.jainOption) draft.religiousDiets.find((item) => item.id === "jain").options[event.target.dataset.jainOption] = event.target.checked;
+    if (event.target.dataset.jainSetting) {
+      draft.jain = window.ROOTS_JAIN_PROFILE?.getSettings?.(draft) || draft.jain || {};
+      draft.jain[event.target.dataset.jainSetting] = event.target.value;
+      window.ROOTS_JAIN_EFFECTIVE_PROFILE?.clearCache?.();
+      render();
+    }
     if (event.target.id === "hindu-allow-eggs") draft.religiousDiets.find((item) => item.id === "hindu_vegetarian").options.allowEggs = event.target.checked;
     if (event.target.id === "gluten-strict") draft.lifestyleDiets.find((item) => item.id === "gluten_free").options.strictCrossContact = event.target.checked;
     if (event.target.dataset.crossKey) P.setCrossContactValue(draft, event.target.dataset.crossKey, event.target.value);
@@ -278,6 +290,7 @@
     draft.onboardingComplete = true;
     try {
       activeProfile = P.saveActiveProfile(draft);
+      window.ROOTS_LAUNCH?.mark?.("profile_created");
       close();
       renderAppSummaries();
       if (!editSingleStep) {

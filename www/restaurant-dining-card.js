@@ -29,7 +29,7 @@
   async function translate(card, language) {
     const cached = localStorage.getItem(cacheKey(card, language));
     if (cached) { try { return JSON.parse(cached); } catch (_) { /* request a fresh translation */ } }
-    if (root.navigator?.onLine === false) throw new Error("Connect to the internet to create this translation. Saved translations remain available offline.");
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) throw new Error("Connect to the internet to create this translation. Saved translations remain available offline.");
     const prompt = `Translate this ROOTS dining card into ${clean(language, 60)}. Preserve every restriction and question exactly in meaning. Do not add, remove, combine, answer, soften, or strengthen anything. Return strict JSON with the same keys and question IDs: ${JSON.stringify(card)}`;
     const parsed = JSON.parse(await root.BIJ_OCR.generateText(prompt, { temperature: 0, json: true, task: "dining-explanation" }));
     const validQuestions = list(parsed?.questions);

@@ -22,6 +22,7 @@
       const linked = combineSignal(options.signal, Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT));
       try {
         const response = await fetch(url, { ...requestOptions, signal: linked.signal });
+        root.ROOTS_CONNECTIVITY?.noteSuccess?.();
         if (!response.ok && attempt < retries && transient(response.status)) {
           linked.cleanup(); await delay(Math.min(2000, 250 * (2 ** attempt)), options.signal); attempt += 1; continue;
         }
@@ -29,6 +30,9 @@
         let data = null;
         if (text) { try { data = JSON.parse(text); } catch (_) { data = text; } }
         return { ok: response.ok, status: response.status, data, headers: response.headers };
+      } catch (error) {
+        if (error?.name !== "AbortError") root.ROOTS_CONNECTIVITY?.noteFailure?.();
+        throw error;
       } finally { linked.cleanup(); }
     }
   }

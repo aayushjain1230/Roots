@@ -22,7 +22,7 @@
   add("whey","Whey",["whey powder","whey protein","whey protein concentrate","whey protein isolate"],["dairy","milk_derivative","animal_derived"],["milk"]);
   add("casein","Casein",["caseinate","sodium caseinate"],["dairy","milk_derivative","animal_derived"],["milk"]);
   many("dairy", [["lactose","Lactose",[]],["butter","Butter",["butterfat"]],["cream","Cream",[]],["cheese","Cheese",[]],["ghee","Ghee",[]],["yogurt","Yogurt",["yoghurt"]],["paneer","Paneer",[]],["buttermilk","Buttermilk",[]]]);
-  [["onion","Onion",["onion powder"],["root_vegetable","onion_garlic"]],["garlic","Garlic",["garlic powder"],["root_vegetable","onion_garlic"]],
+  [["onion","Onion",["onion powder","dehydrated onion","onion extract"],["root_vegetable","onion_garlic"]],["garlic","Garlic",["garlic powder","dehydrated garlic","garlic extract"],["root_vegetable","onion_garlic"]],
    ["shallot","Shallot",["shallots"],["root_vegetable","onion_garlic"]],["leek","Leek",["leeks"],["root_vegetable","onion_garlic"]],["chive","Chive",["chives"],["root_vegetable","onion_garlic"]],
    ["potato","Potato",["potatoes"],["root_vegetable"]],["sweet_potato","Sweet Potato",["sweet potatoes"],["root_vegetable"]],["yam","Yam",["yams"],["root_vegetable"]],
    ["carrot","Carrot",["carrots"],["root_vegetable"]],["beet","Beet",["beetroot"],["root_vegetable"]],["radish","Radish",["radishes"],["root_vegetable"]],
@@ -31,6 +31,7 @@
   add("honey","Honey",[],["honey","animal_derived"],[]);
   add("mushroom","Mushroom",["mushrooms"],["mushroom"],[]);
   add("gelatin","Gelatin",["gelatine","e441","e 441"],["animal_derived","source_dependent","stabilizer"],[],{sourceDependent:true,possibleSources:["pork","beef","fish"]});
+  add("animal_gelatin","Animal Gelatin",["animal gelatin","beef gelatin","bovine gelatin"],["animal_derived","stabilizer"],[]);
   add("porcine_gelatin","Porcine Gelatin",["pork gelatin","porcine gelatine"],["animal_derived","pork"],[]);
   add("carmine","Carmine",["cochineal","e120","e 120"],["animal_derived","insect_derived","color"],[]);
   add("shellac","Shellac",["confectioner's glaze","confectioners glaze"],["animal_derived","insect_derived"],[]);
@@ -50,6 +51,7 @@
   add("shortening","Shortening",[],["source_dependent"],[],{sourceDependent:true});
   add("vitamin_d3","Vitamin D3",["cholecalciferol"],["source_dependent"],[],{sourceDependent:true});
   add("l_cysteine","L-Cysteine",["l cysteine","e920","e 920"],["source_dependent"],[],{sourceDependent:true,possibleSources:["human_hair","animal","fermentation","synthetic"]});
+  add("stearates","Stearates",["stearate","magnesium stearate","calcium stearate","stearic acid"],["source_dependent","emulsifier"],[],{sourceDependent:true,possibleSources:["plant","animal","synthetic"]});
   add("modified_food_starch","Modified Food Starch",[],["source_dependent","stabilizer"],[],{sourceDependent:true});
   add("lecithin","Lecithin",[],["source_dependent","emulsifier"],[],{sourceDependent:true});
   add("soy_lecithin","Soy Lecithin",["soya lecithin"],["soy","plant_derived","emulsifier"],["soy"]);
@@ -66,7 +68,7 @@
   [["sugar","Sugar"],["rice","Rice"],["corn","Corn"],["potato_starch","Potato Starch"],["cocoa_butter","Cocoa Butter"],["peanut_butter","Peanut Butter"],["lactic_acid","Lactic Acid"],["quinoa","Quinoa"],["buckwheat","Buckwheat"],["coconut","Coconut"],["nutmeg","Nutmeg"],["eggplant","Eggplant"],["graham_flour","Graham Flour"]].forEach(x=>add(x[0],x[1],[],["plant_derived"],[]));
   add("mustard","Mustard",["mustard seed","mustard powder","mustard oil"],["plant_derived"],[]);
 
-  const OCR_CORRECTIONS = Object.freeze({"garlik":"garlic","onon":"onion","milik":"milk","whev":"whey","sesarne":"sesame","ground nut":"groundnut"});
+  const OCR_CORRECTIONS = Object.freeze({"garlik":"garlic","gariic":"garlic","peanul":"peanut","alrnond":"almond","onon":"onion","milik":"milk","whev":"whey","sesarne":"sesame","ground nut":"groundnut"});
   const byId = new Map(records.map(r=>[r.id,r]));
   const aliasIndex = new Map();
   records.forEach(r=>[r.label,...r.aliases].forEach(a=>aliasIndex.set(String(a).toLowerCase().replace(/\s+/g," ").trim(),r)));

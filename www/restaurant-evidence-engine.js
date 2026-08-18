@@ -32,6 +32,9 @@
       .map((value) => clean(value, 3000)).filter(Boolean).join(", ");
   }
   function crossContactEvidence(menu, dish, profile) {
+    if (root.ROOTS_RESTAURANT_CROSS_CONTACT) {
+      return root.ROOTS_RESTAURANT_CROSS_CONTACT.assess(menu, dish, profile).issues.map((item) => evidence(`cross-${item.id}`, "cross_contact", LEVELS.CONFIRMED, item.text, { ruleId: `cross_contact.${item.id}`, effect: item.effect }));
+    }
     const sourceText = [...(menu?.allergenNotes || []), ...(menu?.footnotes || []), ...(dish?.allergenLabels || []), ...(dish?.menuNotes || [])].join(" ");
     const results = [];
     CROSS_CONTACT.forEach((rule) => {
@@ -47,6 +50,7 @@
   function evaluateDish(menu, dish, profile, context) {
     if (!dish?.id) throw new TypeError("Dish identity is required.");
     if (!profile || typeof profile !== "object") throw new TypeError("A validated dietary profile is required.");
+    profile = root.ROOTS_DIETARY_FEATURES?.projectProfile?.(profile) || profile;
     const text = extractMenuText(dish), description = clean(dish.descriptionOriginal || dish.descriptionTranslated, 5000);
     const explicitIngredientList = clean(context?.ingredientList, 10000);
     const parsed = description ? Dietary.parseIngredientText(description) : { ingredients: [], contains: [], mayContain: [], sharedEquipment: [], sharedFacility: [] };
@@ -70,6 +74,9 @@
     });
     if (!description) unknowns.push({ code: "description_missing", text: "The restaurant does not provide a dish description.", evidenceId: `menu-${dish.id}` });
     if (description && !parsed.ingredients.length) unknowns.push({ code: "ingredients_not_identified", text: "The description does not provide enough ingredient detail.", evidenceId: `menu-${dish.id}` });
+    if (!explicitIngredientList && dish.ingredientEvidence?.complete !== true && dish.ingredientsComplete !== true && dish.userEdited !== true) {
+      unknowns.push({ code: "ingredient_list_incomplete", text: "A menu description is not a complete ingredient list.", evidenceId: `menu-${dish.id}` });
+    }
     if (UNCERTAIN_TERMS.test(text)) {
       const matches = [...new Set((text.match(new RegExp(UNCERTAIN_TERMS.source, "ig")) || []).map((value) => value.toLowerCase()))];
       matches.forEach((term) => unknowns.push({ code: "preparation_component_unknown", text: `${term[0].toUpperCase()}${term.slice(1)} ingredients are not fully stated.`, evidenceId: `menu-${dish.id}` }));
@@ -82,6 +89,8 @@
       if (item.effect === "avoid") conflicts.push({ displayName: item.text, normalizedName: item.id, matchedIngredientId: null, reasons: [{ id: item.id, profileRuleId: item.ruleId, severity: "avoid", label: item.text }] });
       else unknowns.push({ code: "cross_contact", text: item.text, evidenceId: item.id });
     });
+    const crossAssessment = root.ROOTS_RESTAURANT_CROSS_CONTACT?.assess?.(menu, dish, profile, context);
+    (crossAssessment?.unknowns || []).forEach((item) => unknowns.push({ ...item, evidenceId: `cross-${item.code}` }));
     const guideNotes = Array.isArray(context?.allergenGuide) ? context.allergenGuide : context?.allergenGuide ? [context.allergenGuide] : [];
     const advisoryText = [...(dish.allergenLabels || []), ...(menu.allergenNotes || []), ...guideNotes].join("; ");
     if (advisoryText) {
@@ -139,6 +148,8 @@
       restaurantNotes: [...(dish.menuNotes || []), ...(dish.allergenLabels || []), ...(menu.allergenNotes || [])],
       profileConflicts: conflicts.flatMap((item) => item.reasons || []),
       warnings, suggestedModifications: modification.actions, unknowns, ruleTrace: trace, evidenceGraph: graph,
+      effectiveRules: root.ROOTS_EFFECTIVE_RULES?.expand?.(profile) || null,
+      crossContact: crossAssessment || null,
       profileSnapshot: { id: profile.id, updatedAt: profile.updatedAt, schemaVersion: profile.schemaVersion },
       sourceSnapshot: clone(menu.source), evaluatedAt: context?.evaluatedAt || new Date().toISOString(),
     };

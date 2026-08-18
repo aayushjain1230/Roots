@@ -43,6 +43,7 @@
     const pack = {
       schemaVersion:1,id:`${language}-${region}-roots-dining-v${VERSION}-${fingerprint(profile)}`,language,region,version:VERSION,
       generatedAt:new Date().toISOString(),source:"roots_curated_and_generated",profileFingerprint:fingerprint(profile),
+      effectiveRules:root.ROOTS_EFFECTIVE_RULES?.expand?.(profile)||null,
       sections:{
         introduction:[phrase("intro",language,"introduction",labels.intro,dictionary.intro)],
         dietaryRestrictions:dietary,allergens,crossContact:[phrase("shared-prep",language,"crossContact","Please tell me if shared equipment is used.","")],
@@ -61,6 +62,7 @@
     if (required.some((key) => !Array.isArray(pack.sections[key]))) return {valid:false,error:"Language pack sections are incomplete."};
     const bytes = new TextEncoder().encode(JSON.stringify(pack)).length;
     if (bytes > MAX_BYTES) return {valid:false,error:"Language pack exceeds the size limit."};
+    if (pack.effectiveRules && (!Array.isArray(pack.effectiveRules.rules) || pack.effectiveRules.version !== 1)) return {valid:false,error:"Language pack rules are malformed."};
     return {valid:true,sizeBytes:bytes};
   }
   async function download(pack) {
@@ -72,7 +74,7 @@
     const result=validate(pack); if(!result.valid) throw new Error(result.error);
     const phrases=Object.values(pack.sections).flat().filter((item)=>item?.sourceText&&item.translationStatus==="source_only");
     if(!phrases.length) return pack;
-    if(root.navigator?.onLine===false) throw new Error("Connect to the internet to prepare new offline translations.");
+    if(root.ROOTS_CONNECTIVITY?.get?.().offline===true) throw new Error("Connect to the internet to prepare new offline translations.");
     if(!root.BIJ_OCR?.generateText) throw new Error("Translation is not configured for this build.");
     const prompt=`Translate the following fixed ROOTS travel phrases into language ${pack.language}. Do not add, remove, reorder, answer, soften, or strengthen dietary restrictions. Preserve IDs. Transliteration must be separate and only included when useful. Return JSON {"phrases":[{"id","translatedText","transliteration"}]}. ${JSON.stringify(phrases.map(({id,sourceText})=>({id,sourceText})))}`;
     const parsed=JSON.parse(await root.BIJ_OCR.generateText(prompt,{temperature:0,json:true})), translated=Array.isArray(parsed?.phrases)?parsed.phrases:[];

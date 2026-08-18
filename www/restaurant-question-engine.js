@@ -73,5 +73,27 @@
   function group(set) {
     return CATEGORIES.map((category) => ({ category, questions: list(set?.questions).filter((item) => item.category === category) })).filter((item) => item.questions.length);
   }
-  root.ROOTS_SERVER_QUESTIONS = { generate, group, constants: { VERSION, CATEGORIES, PRIORITIES } };
+  function generateProfileQuestions(profile) {
+    const questions = [], add = (id, category, text, reason) => {
+      const evidence = { id: `profile-rule-${id}`, type: "active_profile_rule", text: reason, effect: "needs_confirmation" };
+      const item = question(id, category, "high", text, reason, evidence); if (item) questions.push(item);
+    };
+    const jain = list(profile?.religiousDiets).find((item) => item.id === "jain" && item.enabled);
+    if (jain?.options?.avoidOnionGarlic) add("jain-onion-garlic", "Ingredients", "Does this contain onion or garlic?", "The active Jain profile excludes onion and garlic.");
+    if (jain?.options?.avoidAllRootVegetables) add("jain-root-vegetables", "Ingredients", "Does this contain potatoes, carrots, radishes, beets, or other root vegetables?", "The active Jain profile excludes root vegetables.");
+    if (jain?.options?.avoidEggs) add("jain-eggs", "Ingredients", "Does this contain egg or an egg-derived ingredient?", "The active Jain profile excludes eggs.");
+    if (jain?.options?.avoidMeatFishSeafood) add("jain-animal", "Ingredients", "Does this contain meat, fish, seafood, or animal stock?", "The active Jain profile excludes meat, fish, seafood, and animal stock.");
+    const allergyQuestions = {
+      peanut: "Does this contain peanuts or peanut oil?", tree_nut: "Does this contain or share equipment with tree nuts?",
+      milk: "Does this contain milk or dairy-derived ingredients?", egg: "Does this contain egg or egg-derived ingredients?",
+      wheat: "Does this contain wheat?", soy: "Does this contain soy?", fish: "Does this contain fish or fish-derived ingredients?",
+      shellfish: "Does this contain shellfish?", sesame: "Does this contain sesame or sesame oil?",
+    };
+    list(profile?.allergies).forEach((item) => {
+      const text = allergyQuestions[item.id] || `Does this contain ${clean(item.label || item.normalizedTerm || item.id, 100)}?`;
+      add(`allergy-${item.id || item.normalizedTerm}`, item.id === "tree_nut" ? "Cross Contact" : "Ingredients", text, `${clean(item.label || item.id, 100)} is in the active allergy profile.`);
+    });
+    return { schemaVersion: 1, engineVersion: VERSION, id: `profile-question-set-${Date.now().toString(36)}`, questions, generatedAt: new Date().toISOString(), deterministic: true, offlineReady: true };
+  }
+  root.ROOTS_SERVER_QUESTIONS = { generate, generateProfileQuestions, group, constants: { VERSION, CATEGORIES, PRIORITIES } };
 })(typeof window !== "undefined" ? window : globalThis);

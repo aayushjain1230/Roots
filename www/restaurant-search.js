@@ -40,8 +40,8 @@
     const meal = cleanMeal(input?.meal), location = P.validateLocation(input?.location), radius = S.setRadius(input?.radius);
     if (!meal) throw { code: "meal_required", message: "Choose or enter what you would like to eat." };
     if (!location) throw { code: "location_required", message: "Choose a location before searching." };
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      const cached = S.getCachedResults(meal, location, radius);
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) {
+      const cached = S.getCachedResults(meal, location, radius, { allowStale: true });
       if (cached) return { ...cached, cached: true };
       throw { code: "offline", message: "Restaurant search needs internet. Reconnect and try again." };
     }
@@ -56,6 +56,8 @@
       S.addRecentLocation(location);
       S.addRecentSearch(meal, location, radius);
       const record = S.cacheResults(meal, location, radius, restaurants, { provider: String(response?.provider || ""), resultCount: restaurants.length });
+      root.ROOTS_METRICS?.track?.("restaurant_searched", { outcome: restaurants.length ? "results" : "empty" });
+      root.ROOTS_LAUNCH?.mark?.("first_restaurant_search");
       return { ...record, cached: false };
     } finally {
       if (signal === activeController?.signal) activeController = null;

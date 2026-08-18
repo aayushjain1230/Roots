@@ -24,6 +24,10 @@ vm.createContext(context);
   "www/ingredient-knowledge.js",
   "www/ingredient-parser.js",
   "www/dietary-rules.js",
+  "www/evidence-model.js",
+  "www/effective-rules.js",
+  "www/decision-engine.js",
+  "www/resolution-engine.js",
   "www/scan-pipeline.js",
 ].forEach((file) => vm.runInContext(fs.readFileSync(file, "utf8"), context, { filename: file }));
 
@@ -46,6 +50,8 @@ test("barcode evidence preserves identity, raw parentheses, and reaches ROOTS en
   assert.equal(scan.product.ingredients[0].subingredients.length, 2);
   assert.equal(scan.evaluation.engineVersion, 2);
   assert.equal(scan.verdict, "AVOID");
+  assert.equal(scan.decision.status, "CONFLICT");
+  assert.equal(scan.evidence.claims[0].source.tier, "B");
 });
 
 test("missing barcode ingredients is insufficient and never safe", () => {
@@ -87,6 +93,7 @@ test("empty OCR and parser output are insufficient", () => {
   const scan = PIPE.evaluateSource(PIPE.sourceFromOcr({ ingredientTextOriginal: "" }), profileWith());
   assert.equal(scan.state, "INSUFFICIENT_DATA");
   assert.notEqual(scan.verdict, "SAFE");
+  assert.equal(scan.decision.status, "VERIFY");
 });
 
 test("a current physical label overrides differing barcode evidence and reports the conflict", () => {
@@ -97,6 +104,8 @@ test("a current physical label overrides differing barcode evidence and reports 
   assert.equal(labelScan.verdict, "AVOID");
   assert.ok(labelScan.warnings.some((item) => item.code === "source_conflict"));
   assert.equal(labelScan.product.sourceType, "label_photo");
+  assert.equal(labelScan.evidence.claims.find((claim) => claim.source.type === "physical_label").source.tier, "A");
+  assert.equal(labelScan.evidence.conflicts.length, 1);
 });
 
 test("serious incomplete evidence downgrades an otherwise safe evaluation to caution", () => {
@@ -181,6 +190,8 @@ test("history schema preserves product, profile, versions, text, and edit flag",
   assert.equal(record.text.original, "azúcar");
   assert.equal(record.text.translated, "sugar");
   assert.equal(record.source.editedByUser, true);
+  assert.equal(record.evidence.claims[0].source.type, "physical_label");
+  assert.equal(record.decision.status, "MATCH");
 });
 
 for (const [legacy, expected] of [["JAIN", "SAFE"], ["NON_JAIN", "AVOID"], ["ALLERGEN", "AVOID"], ["UNCERTAIN", "CAUTION"]]) {

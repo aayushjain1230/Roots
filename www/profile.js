@@ -189,6 +189,7 @@
       restrictions: normalizeRestrictions(input.restrictions),
       restrictionSchemaVersion: 1,
       crossContact: normalizeCrossContact(input.crossContact),
+      jain: root.ROOTS_JAIN_PROFILE?.getSettings?.({ ...input, religiousDiets: normalizeDietArray(normalizedReligiousSource(input), D.religiousDiets) }) || input.jain || {},
       region: typeof input.region === "string" && input.region ? input.region : "US",
       appLanguage: typeof input.appLanguage === "string" && input.appLanguage ? input.appLanguage : "en",
       translationLanguage: typeof input.translationLanguage === "string" && input.translationLanguage ? input.translationLanguage : "en",
@@ -202,6 +203,9 @@
     checked.profile.updatedAt = now();
     const storage = safeStorage();
     if (storage) storage.setItem(STORAGE_KEY, JSON.stringify(checked.profile));
+    if (root.ROOTS_CONNECTIVITY?.get?.().online !== true) {
+      try { root.ROOTS_SYNC_QUEUE?.enqueue?.("profile", checked.profile, { id: `sync-profile-${checked.profile.id}`, localVersion: Date.parse(checked.profile.updatedAt) || 1 }); } catch (_) { /* local profile save remains authoritative */ }
+    }
     return clone(checked.profile);
   }
 
@@ -383,6 +387,12 @@
       lines.push("\nJain settings:");
       Object.entries(labels).forEach(([key, label]) => lines.push(`- ${jain.options[key] ? label : label.replace(/^Avoid /, "Allows ")}`));
       lines.push("- Respect these selected settings without generalizing them to all Jain practice.");
+      const effective = root.ROOTS_JAIN_EFFECTIVE_PROFILE?.getEffectiveProfile?.({ profile });
+      if (effective) {
+        lines.push("- Jain tradition: " + (effective.tradition || "not_sure") + ".");
+        if (effective.activeObservance) lines.push("- Active Jain observance: " + effective.activeObservance.label + " day " + effective.activeObservance.day + ".");
+        lines.push("- Effective Jain rule IDs: " + effective.effectiveRules.map((rule) => rule.id).join(", "));
+      }
     }
     if (parts.lifestyle.length) lines.push("\nLifestyle:", ...parts.lifestyle.map((item) => `- ${item}`));
     if (parts.allergies.length) lines.push("\nAllergies:", ...parts.allergies.map((item) => `- ${item}`));

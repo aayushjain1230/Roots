@@ -5,8 +5,8 @@
 
   const MEALS = Object.freeze([
     "Pizza", "Indian", "Chinese", "Thai", "Mexican", "Italian", "Mediterranean",
-    "Breakfast", "Dessert", "Coffee", "Healthy", "Fast Food", "Vegetarian",
-    "Vegan", "Jain Friendly", "Burgers", "Asian", "Coffee & Bakery",
+    "Breakfast", "Dessert", "Coffee", "Healthy", "Fast Food",
+    "Jain Friendly", "Burgers", "Asian", "Coffee & Bakery",
   ]);
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
@@ -55,11 +55,13 @@
     $("restaurant-meal-input").value = meal;
     renderMealCollections();
   }
-  function renderRestaurants(restaurants, cached) {
+  function renderRestaurants(restaurants, cached, cacheRecord) {
     renderedRestaurants = new Map(restaurants.map((item) => [item.id, item]));
     const list = $("restaurant-results");
     $("restaurant-results-title").textContent = `${meal} near ${locationLabel()}`;
-    $("restaurant-results-meta").textContent = cached ? "Showing a recent cached search." : `${restaurants.length} restaurant${restaurants.length === 1 ? "" : "s"} found`;
+    $("restaurant-results-meta").textContent = cached
+      ? `${cacheRecord?.cacheFreshness === "stale" ? "Cached information may be outdated" : "Showing cached information"}${cacheRecord?.cachedAt ? ` · last updated ${new Date(cacheRecord.cachedAt).toLocaleString()}` : ""}. Live hours and distance are unavailable offline.`
+      : `${restaurants.length} restaurant${restaurants.length === 1 ? "" : "s"} found`;
     if (root.ROOTS_RESTAURANT_RESULTS) {
       root.ROOTS_RESTAURANT_RESULTS.openProgressive(restaurants, { meal, location, radius: Number($("restaurant-radius").value), cached });
       return;
@@ -110,7 +112,7 @@
     $("restaurant-results").innerHTML = stateCard("Finding restaurants", "Searching near your selected location.");
     try {
       const result = await Search.searchRestaurants({ meal, location, radius: $("restaurant-radius").value });
-      renderRestaurants(result.restaurants, result.cached);
+      renderRestaurants(result.restaurants, result.cached, result);
       renderMealCollections();
       status("Restaurant search complete.", "success");
     } catch (error) {

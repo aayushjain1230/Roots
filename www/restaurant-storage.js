@@ -66,10 +66,13 @@
   }
   function removeSavedLocation(id) { return write(KEYS.savedLocations, getSavedLocations().filter((item) => item.id !== id)); }
   function cacheKey(meal, location, radius) { return `${clean(meal, 120).toLowerCase()}|${locationKey(location)}|${radius}`; }
-  function getCachedResults(meal, location, radius) {
+  function getCachedResults(meal, location, radius, options) {
     const key = cacheKey(meal, location, radius);
     const record = read(KEYS.cache, []).find((item) => item.key === key);
-    return record && Date.now() - Date.parse(record.cachedAt) <= CACHE_TTL ? record : null;
+    if (!record) return null;
+    const ageMs = Math.max(0, Date.now() - Date.parse(record.cachedAt || 0));
+    if (ageMs > CACHE_TTL && options?.allowStale !== true) return null;
+    return { ...record, cacheAgeMs: ageMs, cacheFreshness: ageMs > CACHE_TTL ? "stale" : "current" };
   }
   function cacheResults(meal, location, radius, restaurants, metadata) {
     const key = cacheKey(meal, location, radius);

@@ -30,6 +30,7 @@
       profileSnapshot: { id: profile.id, name: profile.name, updatedAt: profile.updatedAt, schemaVersion: profile.schemaVersion },
       groups, dishes, generatedAt: options?.evaluatedAt || new Date().toISOString(), fromCache: false,
     };
+    root.ROOTS_METRICS?.track?.("menu_analyzed", { outcome: dishes.length ? "evaluated" : "empty" });
     write([{ key, report, lastAccessedAt: new Date().toISOString() }, ...read().filter((item) => item.key !== key)]);
     return report;
   }

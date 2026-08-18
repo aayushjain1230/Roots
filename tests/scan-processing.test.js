@@ -21,7 +21,7 @@ function harness({ online = true } = {}) {
     "processing-live", "processing-warning", "processing-failure", "processing-failure-title",
     "processing-failure-message", "processing-retry", "processing-scan-label",
     "processing-review-photo", "processing-cancel", "processing-failure-cancel",
-    "scan-barcode-btn", "scan-label-btn",
+    "processing-manual-entry", "scan-barcode-btn", "scan-label-btn",
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, element()]));
   const dock = element();
@@ -149,6 +149,16 @@ test("an unreliable offline flag does not block retry after a network failure", 
   api.startSession({ type: "label" });
   api.fail({ code: "OCR_NETWORK" });
   assert.equal(elements["processing-retry"].disabled, false);
+});
+
+test("offline label reading failures offer manual ingredient entry", () => {
+  const { api, elements } = harness({ online: false });
+  api.startSession({ type: "label", source: { hasOriginalImage: true } });
+  api.fail({ code: "OCR_LOCAL_UNAVAILABLE" });
+  assert.equal(elements["processing-failure-title"].textContent, "Offline text reading unavailable");
+  assert.match(elements["processing-failure-message"].textContent, /Enter the ingredients manually/);
+  assert.equal(elements["processing-manual-entry"].hidden, false);
+  assert.equal(elements["processing-review-photo"].hidden, false);
 });
 
 test("warnings use structured severity and user-readable text", () => {

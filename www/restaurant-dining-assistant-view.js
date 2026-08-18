@@ -55,7 +55,7 @@
   }
   function close() { root.ROOTS_QUESTION_ACTIONS?.stop(); $("dining-assistant-modal").classList.remove("open"); $("dining-assistant-modal").setAttribute("aria-hidden", "true"); if (parentModal) parentModal.setAttribute("aria-hidden", "false"); session?.clear(); session = context = card = null; parentModal = null; trigger?.focus?.(); }
   async function ask(text) {
-    const status = $("dining-assistant-status"); status.textContent = root.navigator?.onLine === false ? "Showing the available offline evidence explanation." : "Reviewing existing evidence…";
+    const status = $("dining-assistant-status"); status.textContent = root.ROOTS_CONNECTIVITY?.get?.().offline === true ? "Showing the available offline evidence explanation." : "Reviewing existing evidence…";
     const result = await session.ask(text, { mode }); render("ask");
     $("dining-assistant-status").textContent = result.offline ? "This explanation used local deterministic evidence." : "Explanation generated from the cited ROOTS evidence.";
   }

@@ -7,7 +7,8 @@ const boundary=(text,alias)=>{let start=-1;while((start=text.indexOf(alias,start
 function resolveIngredient(value){
  const n=typeof value==="string"?P.normalizeIngredientText(value):P.normalizeIngredientText(value?.normalizedName||value?.name||value?.rawName);
  if(n.isFreeClaim)return {record:null,normalizedName:n.normalizedName,matchType:"free_claim",evidenceLevel:"confirmed"};
- let rec=K.aliasIndex.get(n.normalizedName),matchType=n.ocrCorrection?"ocr_correction":"exact";
+ let rec=K.aliasIndex.get(n.normalizedName)||root.ROOTS_OFFLINE_KNOWLEDGE?.findAlias?.(n.normalizedName),matchType=n.ocrCorrection?"ocr_correction":"exact";
+ if(!rec&&root.ROOTS_OFFLINE_KNOWLEDGE){const dynamic=root.ROOTS_OFFLINE_KNOWLEDGE.getRecords().flatMap(record=>[record.label,...record.aliases].map(alias=>[String(alias).toLowerCase(),record])).sort((a,b)=>b[0].length-a[0].length).find(([alias])=>boundary(n.normalizedName,alias));if(dynamic){rec=dynamic[1];matchType="whole_phrase";}}
  if(!rec){const candidate=phraseAliases.find(([alias])=>boundary(n.normalizedName,alias));if(candidate){rec=candidate[1];matchType="whole_phrase";}}
  return {record:rec||null,normalizedName:n.normalizedName,matchType,evidenceLevel:n.ocrCorrection?"likely":"confirmed",ocrCorrection:n.ocrCorrection};
 }
@@ -15,6 +16,11 @@ const active=(p,g,id)=>!!p?.[g]?.find(x=>x.id===id)?.enabled;
 const entry=(p,g,id)=>p?.[g]?.find(x=>x.id===id);
 const has=(r,c)=>r?.categories?.includes(c);
 const any=(r,cs)=>cs.some(c=>has(r,c));
+function ruleMatchesRecord(rule,rec){
+ if(!rec)return false;
+ if(rule.id==="rule-jain-animal-additives"&&any(rec,["dairy","egg","honey"]))return false;
+ return (rule.ingredientIds||[]).includes(rec.id)||(rule.categories||[]).some(c=>has(rec,c))||(rule.aliasIds||[]).some(c=>has(rec,c));
+}
 function reason(id,category,rule,severity,label,evidenceType,evidenceLevel,extra){return {id,category,profileRuleId:rule,severity,label,evidenceType:evidenceType||"direct_ingredient",evidenceLevel:evidenceLevel||"confirmed",...(extra||{})};}
 function addReason(reasons,r){if(!reasons.some(x=>x.id===r.id))reasons.push(r);}
 function statusFromReasons(rs){let s="SAFE";rs.forEach(r=>{const x=r.severity==="avoid"?"AVOID":r.severity==="caution"?"CAUTION":r.severity==="preference"?"PREFERENCE":"SAFE";if(STATUS[x]>STATUS[s])s=x;});return s;}
@@ -67,9 +73,21 @@ function evaluateIngredient(ingredient,profile,context){
   const jain=entry(profile,"religiousDiets","jain"),jo=jain?.options||{};
   const animal=any(rec,["meat","fish","shellfish","egg","pork"]),animalAdd=any(rec,["animal_derived","insect_derived"])&&!any(rec,["dairy","egg","honey"]);
   if(jain?.enabled){
-   const conflict=(jo.avoidMeatFishSeafood&&any(rec,["meat","fish","shellfish"]))||(jo.avoidEggs&&has(rec,"egg"))||(jo.avoidOnionGarlic&&has(rec,"onion_garlic"))||(jo.avoidAllRootVegetables&&has(rec,"root_vegetable"))||(jo.avoidHoney&&has(rec,"honey"))||(jo.avoidAnimalDerivedAdditives&&animalAdd)||(jo.avoidMushrooms&&has(rec,"mushroom"))||(jo.avoidArtificialAdditives&&has(rec,"artificial_additive"))||(jo.avoidFermentedIngredients&&has(rec,"fermentation"));
-   if(conflict)trigger("jain","religious",rec.sourceDependent?"caution":"avoid",rec.sourceDependent?`${rec.label} source needs confirmation for your Jain settings.`:`Your Jain settings exclude ${rec.label.toLowerCase()}.`,null,rec.sourceDependent?"needs_confirmation":"confirmed");
-   else if(rec.id==="natural_flavors"&&jo.avoidAnimalDerivedAdditives)trigger("jain","source_dependent","caution","Natural flavor sources need confirmation for your Jain settings.",null,"needs_confirmation");
+   const effective=root.ROOTS_JAIN_EFFECTIVE_PROFILE?.getEffectiveProfile?.({profile,date:ctx.date||ctx.evaluatedAt||new Date()});
+   const rules=effective?.effectiveRules||[];
+   const matched=rules.filter(rule=>ruleMatchesRecord(rule,rec));
+   if(matched.length){
+    matched.forEach(rule=>{
+     const severity=rule.effect==="caution"||rec.sourceDependent?"caution":"avoid";
+     const sourceUnknown=severity==="caution";
+     const label=sourceUnknown?`${rec.label} source needs confirmation for your Jain settings.`:`Your Jain settings exclude ${rec.label.toLowerCase()}.`;
+     trigger("jain",sourceUnknown?"source_dependent":"religious",severity,label,`${rule.id}-${rec.id}`,sourceUnknown?"needs_confirmation":"confirmed",{jainRuleId:rule.id,jainRuleType:rule.type,activeObservance:effective?.activeObservance||null});
+    });
+   } else if(!effective){
+    const conflict=(jo.avoidMeatFishSeafood&&any(rec,["meat","fish","shellfish"]))||(jo.avoidEggs&&has(rec,"egg"))||(jo.avoidOnionGarlic&&has(rec,"onion_garlic"))||(jo.avoidAllRootVegetables&&has(rec,"root_vegetable"))||(jo.avoidHoney&&has(rec,"honey"))||(jo.avoidAnimalDerivedAdditives&&animalAdd)||(jo.avoidMushrooms&&has(rec,"mushroom"))||(jo.avoidArtificialAdditives&&has(rec,"artificial_additive"))||(jo.avoidFermentedIngredients&&has(rec,"fermentation"));
+    if(conflict)trigger("jain","religious",rec.sourceDependent?"caution":"avoid",rec.sourceDependent?`${rec.label} source needs confirmation for your Jain settings.`:`Your Jain settings exclude ${rec.label.toLowerCase()}.`,null,rec.sourceDependent?"needs_confirmation":"confirmed");
+    else if(rec.id==="natural_flavors"&&jo.avoidAnimalDerivedAdditives)trigger("jain","source_dependent","caution","Natural flavor sources need confirmation for your Jain settings.",null,"needs_confirmation");
+   } else if(rec.id==="natural_flavors"&&jo.avoidAnimalDerivedAdditives)trigger("jain","source_dependent","caution","Natural flavor sources need confirmation for your Jain settings.",null,"needs_confirmation");
   }
   if(active(profile,"religiousDiets","halal")){
    if(any(rec,["pork","blood","alcohol","carnivorous_animal","non_halal_meat"])||rec.id==="porcine_gelatin")trigger("halal","religious","avoid",`${rec.label} is not compatible with Halal ingredient rules.`);
@@ -114,7 +132,8 @@ function crossContactResults(items,profile,key,evidenceType){const action=profil
 function aggregateProductVerdict(results){const verdict=results.some(x=>x.status==="AVOID")?"AVOID":results.some(x=>x.status==="CAUTION")?"CAUTION":"SAFE";return verdict;}
 function evaluateParsedProduct(product,profile,options){
  const task=root.ROOTS_PERFORMANCE?.startTask?.("dietary_evaluation",{count:(product.ingredients||[]).length});
- const direct=(product.ingredients||[]).map(i=>evaluateIngredient(i,profile)),contains=crossContactResults(product.contains,profile,"contains","declared_contains"),may=crossContactResults(product.mayContain,profile,"mayContain","declared_may_contain"),equip=crossContactResults(product.sharedEquipment,profile,"sharedEquipment","shared_equipment"),facility=crossContactResults(product.sharedFacility,profile,"sharedFacility","shared_facility");
+ const evalContext={evaluatedAt:options?.evaluatedAt,date:options?.date,sourceType:options?.sourceType};
+ const direct=(product.ingredients||[]).map(i=>evaluateIngredient(i,profile,evalContext)),contains=crossContactResults(product.contains,profile,"contains","declared_contains"),may=crossContactResults(product.mayContain,profile,"mayContain","declared_may_contain"),equip=crossContactResults(product.sharedEquipment,profile,"sharedEquipment","shared_equipment"),facility=crossContactResults(product.sharedFacility,profile,"sharedFacility","shared_facility");
  let all=[...direct,...contains,...may,...equip,...facility];
  const explicitSelections=(root.ROOTS_RESTRICTIONS?.getSelected?.(profile)||[]).filter(item=>item.source!=="legacy_profile");
  const addProductEvidence=(selection,status,label,evidenceType,value)=>{
@@ -142,8 +161,10 @@ function evaluateParsedProduct(product,profile,options){
  });
  if(active(profile,"religiousDiets","kosher")&&direct.some(x=>has(K.byId.get(x.matchedIngredientId),"meat"))&&direct.some(x=>has(K.byId.get(x.matchedIngredientId),"dairy")))all.push({status:"AVOID",displayName:"Meat and dairy combination",normalizedName:"meat dairy combination",reasons:[reason("kosher-meat-dairy","religious","kosher","avoid","Contains an explicit meat and dairy combination.","direct_ingredient","confirmed")],subingredientResults:[],engineVersion:1,ingredientKnowledgeVersion:K.version});
  const verdict=aggregateProductVerdict(all),groups=s=>all.filter(x=>x.status===s),allReasons=sortReasons(all.flatMap(x=>x.reasons||[])),summaryReasons=dedupeLabels(allReasons).slice(0,5);
+ const jainEffective=root.ROOTS_JAIN_EFFECTIVE_PROFILE?.getEffectiveProfile?.({profile,date:options?.evaluatedAt||new Date()})||null;
+ const jainReasons=allReasons.filter(x=>x.profileRuleId==="jain");
  const conflicts=root.ROOTS_RESTRICTION_CONFLICTS?.detectConflicts?.(profile)||[];
- const result={engineVersion:ENGINE_VERSION,ingredientKnowledgeVersion:K.version,profileSchemaVersion:profile?.schemaVersion||null,restrictionSchemaVersion:1,verdict,summaryReasons:summaryReasons.length?summaryReasons:[reason("no-conflicts","summary","none","safe","No conflicts were found for your selected profile.","direct_ingredient","confirmed")],avoidItems:groups("AVOID"),cautionItems:groups("CAUTION"),safeItems:groups("SAFE"),preferenceItems:groups("PREFERENCE"),allergenEvidence:allReasons.filter(x=>x.category==="allergy"||x.category==="declared_contains"),crossContactEvidence:allReasons.filter(x=>x.category==="cross_contact"),unresolvedItems:all.filter(x=>x.evidenceLevel==="needs_confirmation"),profileConflicts:conflicts,ruleTrace:allReasons.map((x,index)=>({order:index,restrictionId:x.profileRuleId,ruleId:x.id,evidenceLevel:x.evidenceLevel,evidenceType:x.evidenceType,effect:x.severity})),phase6Handoff:{schemaVersion:1,ingredients:all.map(x=>x.phase6Handoff).filter(Boolean),conflicts},evaluatedAt:options?.evaluatedAt||new Date().toISOString(),certifications:product.certifications||[]};
+ const result={engineVersion:ENGINE_VERSION,ingredientKnowledgeVersion:K.version,profileSchemaVersion:profile?.schemaVersion||null,restrictionSchemaVersion:1,verdict,summaryReasons:summaryReasons.length?summaryReasons:[reason("no-conflicts","summary","none","safe","No conflicts were found for your selected profile.","direct_ingredient","confirmed")],avoidItems:groups("AVOID"),cautionItems:groups("CAUTION"),safeItems:groups("SAFE"),preferenceItems:groups("PREFERENCE"),allergenEvidence:allReasons.filter(x=>x.category==="allergy"||x.category==="declared_contains"),crossContactEvidence:allReasons.filter(x=>x.category==="cross_contact"),unresolvedItems:all.filter(x=>x.evidenceLevel==="needs_confirmation"),profileConflicts:conflicts,ruleTrace:allReasons.map((x,index)=>({order:index,restrictionId:x.profileRuleId,ruleId:x.id,evidenceLevel:x.evidenceLevel,evidenceType:x.evidenceType,effect:x.severity})),phase6Handoff:{schemaVersion:1,ingredients:all.map(x=>x.phase6Handoff).filter(Boolean),conflicts},jain:jainEffective?.jainEnabled?{effectiveProfile:jainEffective,verdict:root.ROOTS_JAIN_RELIABILITY?.fromDietaryResult?.({avoidItems:groups("AVOID").filter(x=>(x.reasons||[]).some(r=>r.profileRuleId==="jain")),cautionItems:groups("CAUTION").filter(x=>(x.reasons||[]).some(r=>r.profileRuleId==="jain")),unresolvedItems:all.filter(x=>x.evidenceLevel==="needs_confirmation"&&(x.reasons||[]).some(r=>r.profileRuleId==="jain"))},{sourceType:options?.sourceType,ingredientCount:(product.ingredients||[]).length}),activeObservance:jainEffective.activeObservance,changedByObservance:jainReasons.some(x=>x.activeObservance),reasons:jainReasons}:null,evaluatedAt:options?.evaluatedAt||new Date().toISOString(),certifications:product.certifications||[]};
  root.ROOTS_PERFORMANCE?.endTask?.(task,{count:all.length,status:verdict});return result;
 }
 function getRuleDefinitions(){return {religious:["jain","halal","kosher","hindu_vegetarian"],lifestyle:["vegetarian","vegan","pescatarian","dairy_free","egg_free","gluten_free"],statuses:Object.keys(STATUS)};}

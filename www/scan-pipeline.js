@@ -93,8 +93,65 @@
     };
   }
 
+  function buildEvidence(product, source) {
+    const api = root.ROOTS_EVIDENCE;
+    if (!api) return null;
+    const prior = source?.sourceMetadata?.priorBarcodeEvidence;
+    const scope = api.productScope({ barcode: product.barcode || prior?.barcode, name: product.productName || prior?.productName, brand: product.brand || prior?.brand, region: product.region });
+    const subject = scope.barcode || scope.productName || "scanned_product";
+    const claims = [];
+    const ingredientText = product.ingredientText.edited || product.ingredientText.translated || product.ingredientText.original;
+    if (ingredientText) claims.push(api.claim({
+      subject,
+      predicate: "ingredient_text",
+      object: ingredientText,
+      direction: "direct",
+      level: "confirmed",
+      productScope: scope,
+      observedAt: source?.sourceMetadata?.sourceUpdatedAt || "",
+      metadata: {
+        networkState: root.ROOTS_CONNECTIVITY?.get?.().state || "UNKNOWN",
+        manufacturerVerified: false,
+        certifierVerified: false,
+        verificationScope: product.sourceMetadata?.verificationScope || (product.sourceType === "label_photo" ? "scanned_label_only" : "structured_product_snapshot"),
+      },
+      source: product.sourceType === "label_photo"
+        ? { type: "physical_label", provider: product.sourceMetadata?.provider || "user_scan" }
+        : { type: "trusted_dataset", provider: product.sourceMetadata?.provider || "open_food_facts", retrievedAt: new Date().toISOString() }
+    }));
+    if (prior?.ingredientText) claims.push(api.claim({
+      subject,
+      predicate: "ingredient_text",
+      object: prior.ingredientText,
+      direction: "direct",
+      level: "confirmed",
+      productScope: api.productScope({ barcode: prior.barcode || product.barcode, name: prior.productName || product.productName, brand: prior.brand || product.brand, region: product.region }),
+      observedAt: prior.sourceUpdatedAt || "",
+      source: { type: "trusted_dataset", provider: prior.provider || "open_food_facts" }
+    }));
+    (product.certifications || []).forEach((certification) => claims.push(api.claim({
+      subject,
+      predicate: "certification",
+      object: certification,
+      direction: "direct",
+      level: "confirmed",
+      productScope: scope,
+      source: { type: "certification", provider: product.sourceMetadata?.provider || "product_source" }
+    })));
+    return api.bundle({ productScope: scope, claims });
+  }
+
+  function enrichOutput(output, source) {
+    output.effectiveRules = root.ROOTS_EFFECTIVE_RULES?.expand?.(output.profile) || null;
+    output.evidence = buildEvidence(output.product, source);
+    output.decision = root.ROOTS_DECISION_ENGINE?.decide?.(output) || null;
+    output.resolution = root.ROOTS_RESOLUTION_ENGINE?.resolve?.(output) || null;
+    return output;
+  }
+
   function evaluateSource(source, profile) {
-    const usedProfile = clone(profile || activeProfile());
+    const storedProfile = clone(profile || activeProfile());
+    const usedProfile = root.ROOTS_DIETARY_FEATURES?.projectProfile?.(storedProfile) || storedProfile;
     const parsedProduct = buildParsedProduct(source);
     if (!parsedProduct.ingredients.length) {
       const output = {
@@ -105,6 +162,7 @@
         evaluation: null,
         warnings: parsedProduct.warnings,
       };
+      enrichOutput(output, source);
       current = clone(output);
       return output;
     }
@@ -164,9 +222,11 @@
       verdict: evaluation.verdict,
       product: parsedProduct,
       profile: usedProfile,
+      storedProfile,
       evaluation,
       warnings: parsedProduct.warnings,
     };
+    enrichOutput(output, source);
     current = clone(output);
     if (parsedProduct.sourceType === "barcode") previousBarcode = clone(parsedProduct);
     else if (parsedProduct.sourceType === "label_photo") previousBarcode = null;
@@ -200,6 +260,10 @@
         provider: "open_food_facts",
         sourceUpdatedAt: product.sourceUpdatedAt || product.verifiedAt || "",
         fromCache: !!product.fromCache,
+        offline: !!product.offline,
+        cacheFreshness: product.cacheFreshness || "",
+        cacheAgeMs: product.cacheAgeMs || 0,
+        productVersion: product.productVersion || "",
         structuredIngredients: clone(product.structuredIngredients || []),
       },
     };
@@ -208,6 +272,12 @@
   function sourceFromOcr(ocr) {
     const ocrIngredientText = ocr.ingredientTextTranslated || ocr.ingredientTextOriginal || "";
     const warnings = clone(ocr.extractionWarnings || []);
+    const formulationEvent = root.ROOTS_FORMULATION_TRACKER?.compare?.(ocrIngredientText);
+    if (formulationEvent?.changed) warnings.push(warning(
+      "formulation_change_observed",
+      "The current physical label differs from the cached ingredient snapshot. The current label is being used.",
+      "Review Ingredients"
+    ));
     if (previousBarcode?.ingredientText && ocrIngredientText) {
       const stored = clean(previousBarcode.ingredientText.translated || previousBarcode.ingredientText.original).toLowerCase();
       const physical = clean(ocrIngredientText).toLowerCase();
@@ -234,6 +304,17 @@
       sourceMetadata: {
         provider: ocr.extractionProvider || "gemini",
         extractionVersion: ocr.extractionVersion || 1,
+        offline: !!ocr.offline,
+        verificationScope: ocr.verificationScope || "provider_extraction",
+        formulationEvent: formulationEvent || null,
+        priorBarcodeEvidence: previousBarcode ? {
+          barcode: previousBarcode.barcode,
+          productName: previousBarcode.productName,
+          brand: previousBarcode.brand,
+          ingredientText: previousBarcode.ingredientText?.translated || previousBarcode.ingredientText?.original || "",
+          provider: previousBarcode.sourceMetadata?.provider || "open_food_facts",
+          sourceUpdatedAt: previousBarcode.sourceMetadata?.sourceUpdatedAt || "",
+        } : null,
       },
     };
   }
@@ -265,6 +346,10 @@
         snapshot: clone(scan.profile || {}),
       },
       evaluation: evaluation ? clone(evaluation) : null,
+      effectiveRules: clone(scan.effectiveRules || null),
+      evidence: clone(scan.evidence || null),
+      decision: clone(scan.decision || null),
+      resolution: clone(scan.resolution || null),
       state: scan.state,
       text: clone(product.rawText || { original: "", translated: "", edited: null }),
       ingredientText: clone(product.ingredientText || { original: "", translated: "", edited: null }),

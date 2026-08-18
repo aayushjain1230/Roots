@@ -4,7 +4,7 @@
   async function translate(set, language) {
     if (!LANGUAGES[language]) throw new TypeError("Unsupported language.");
     const cached = root.ROOTS_QUESTION_STORAGE.getTranslation(set, language); if (cached) return { ...cached, fromCache: true };
-    if (typeof navigator !== "undefined" && navigator.onLine === false) { const error = new Error("Connect to translate new questions. Previously translated questions remain available offline."); error.code = "offline"; throw error; }
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) { const error = new Error("Connect to translate new questions. Previously translated questions remain available offline."); error.code = "offline"; throw error; }
     if (!root.BIJ_OCR?.generateText) throw new Error("Translation is unavailable.");
     const payload = set.questions.map((item) => ({ id: item.id, question: item.question, reason: item.reason }));
     const prompt = `Translate the following already-determined restaurant questions into ${LANGUAGES[language]}. Do not add, remove, combine, answer, or change dietary meaning. Keep every id unchanged. Return only a JSON array with exactly ${payload.length} objects shaped {"id","question","reason"} in the same order.\n${JSON.stringify(payload)}`;

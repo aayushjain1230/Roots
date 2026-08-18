@@ -17,6 +17,7 @@
   const CACHE_KEY = "bij-product-cache-v1";
   const CACHE_SCHEMA_VERSION = 2;
   const CACHE_MAX = 300;
+  const CACHE_FRESH_MS = 30 * 24 * 60 * 60 * 1000;
   const FIELDS = "product_name,brands,ingredients_text,ingredients_text_en,ingredients,lang,allergens,allergens_tags,traces,traces_tags,labels_tags,countries_tags,last_modified_t,image_front_url,image_front_small_url,image_url";
   const endpoint = (code) =>
     `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${FIELDS}`;
@@ -29,7 +30,10 @@
   }
   function getCached(code) {
     const c = readCache();
-    return c[String(code)] || null;
+    const product = c[String(code)] || null;
+    if (!product) return null;
+    const ageMs = Math.max(0, Date.now() - Date.parse(product.verifiedAt || 0));
+    return { ...product, cacheAgeMs: ageMs, cacheFreshness: !Date.parse(product.verifiedAt || 0) || ageMs > CACHE_FRESH_MS ? "stale" : "current", needsLabelVerification: true };
   }
   function putCached(code, product) {
     const c = readCache();
@@ -78,6 +82,8 @@
       certifications: Array.isArray(p.labels_tags) ? p.labels_tags : [],
       region: Array.isArray(p.countries_tags) && p.countries_tags[0] ? p.countries_tags[0] : "US",
       sourceUpdatedAt: p.last_modified_t ? new Date(Number(p.last_modified_t) * 1000).toISOString() : "",
+      productVersion: p.last_modified_t ? `off-${p.last_modified_t}` : `off-observed-${Date.now()}`,
+      sourceMetadata: { type: "structured_product_database", provider: "open_food_facts", retrievedAt: new Date().toISOString(), sourceUpdatedAt: p.last_modified_t ? new Date(Number(p.last_modified_t) * 1000).toISOString() : "" },
       cacheSchemaVersion: CACHE_SCHEMA_VERSION,
       verifiedAt: new Date().toISOString(),
     };
@@ -114,9 +120,9 @@
     if (!code) throw new Error("No barcode detected.");
     const cached = getCached(code);
 
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    if (window.ROOTS_CONNECTIVITY?.get?.().offline === true) {
       if (cached) return Object.assign({}, cached, { fromCache: true, offline: true });
-      throw Object.assign(new Error("offline"), { code: "BARCODE_LOOKUP_NETWORK" });
+      throw Object.assign(new Error("Product lookup isn’t available offline yet. Scan the ingredient label instead."), { code: "BARCODE_OFFLINE_MISS", alternativeActions: ["scan_label"] });
     }
 
     let networkFailed = false;
@@ -145,5 +151,7 @@
     return { found: false, code };
   }
 
-  window.BIJ_FOODFACTS = { lookup, getCached, CACHE_SCHEMA_VERSION };
+  function clearCache() { try { localStorage.removeItem(CACHE_KEY); return true; } catch (_) { return false; } }
+  function getCacheStats() { const values = Object.values(readCache()); return { count: values.length, stale: values.filter((item) => Date.now() - Date.parse(item.verifiedAt || 0) > CACHE_FRESH_MS).length, max: CACHE_MAX }; }
+  window.BIJ_FOODFACTS = { lookup, getCached, clearCache, getCacheStats, CACHE_SCHEMA_VERSION };
 })();

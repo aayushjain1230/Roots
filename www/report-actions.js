@@ -60,6 +60,10 @@
         product: { ...scan?.product, image: safeImageUrl(scan?.product?.image) },
         profile: scan?.profile,
         evaluation: scan?.evaluation,
+        effectiveRules: scan?.effectiveRules || null,
+        evidence: scan?.evidence || null,
+        decision: scan?.decision || null,
+        resolution: scan?.resolution || null,
         warnings: scan?.warnings || [],
       })),
     };
@@ -67,6 +71,8 @@
     if (index >= 0) saved[index] = record;
     else saved.unshift(record);
     if (!write(STORAGE_KEY, saved.slice(0, 100))) return null;
+    root.ROOTS_METRICS?.track?.("product_saved", { decision: scan?.decision?.status || record.verdict });
+    root.ROOTS_LAUNCH?.mark?.("first_save");
     root.dispatchEvent?.(new CustomEvent("roots:savedproductschange"));
     return record;
   }
@@ -185,7 +191,9 @@
       engineVersion: scan?.evaluation?.engineVersion || null,
     };
     issues.unshift(issue);
-    return write(ISSUE_KEY, issues.slice(0, 50)) ? issue : null;
+    const stored = write(ISSUE_KEY, issues.slice(0, 50)) ? issue : null;
+    if (stored) root.ROOTS_METRICS?.track?.("result_corrected", { decision: scan?.decision?.status || issue.verdict, category: issue.type });
+    return stored;
   }
 
   root.ROOTS_REPORT_ACTIONS = {

@@ -38,7 +38,7 @@
     const language = options?.language || "en", cached = root.ROOTS_EXPLANATION_CACHE?.get(context, mode, language, 1);
     if (cached) return cached;
     const local = fallback(context, mode);
-    if (root.navigator?.onLine === false || !root.BIJ_OCR?.explainEvidence) return { ...local, offline: true };
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true || !root.BIJ_OCR?.explainEvidence) return { ...local, offline: true };
     const requestId = options?.requestId || `explain-${Date.now().toString(36)}`;
     const controller = new AbortController();
     active.get(requestId)?.abort();

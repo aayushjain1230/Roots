@@ -1,15 +1,15 @@
 {
   "appId": "app.ahimsabytes.butisitjain",
-  "appName": "ROOTS",
+  "appName": "Roots",
   "webDir": "www",
-  "backgroundColor": "#F7F7F5ff",
+  "backgroundColor": "#F5FAEFFF",
   "server": {
     "androidScheme": "https"
   },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 800,
-      "backgroundColor": "#F7F7F5ff"
+      "backgroundColor": "#F5FAEFFF"
     }
   }
 }

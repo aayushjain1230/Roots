@@ -26,6 +26,7 @@
     BARCODE_INVALID: ["data", "Barcode not detected", "Make sure the full barcode is visible, flat, and in focus.", true],
     BARCODE_LOOKUP_TIMEOUT: ["network", "This is taking longer than expected", "ROOTS could not finish looking up this product.", true],
     BARCODE_LOOKUP_NETWORK: ["network", "No connection", "ROOTS needs an internet connection to look up this product.", true],
+    BARCODE_OFFLINE_MISS: ["network", "Product unavailable offline", "Product lookup isn’t available offline yet. Scan the ingredient label instead.", true],
     PRODUCT_NOT_FOUND: ["data", "Product not found", "ROOTS could not find this barcode in the available product database.", true],
     PRODUCT_MISSING_INGREDIENTS: ["data", "Ingredient list unavailable", "We found the product, but its ingredient list was missing.", false],
     PRODUCT_SOURCE_INVALID: ["data", "Product information unavailable", "The saved product information could not be read safely.", true],
@@ -39,7 +40,8 @@
     IMAGE_BLURRY: ["quality", "Photo may be blurry", "Keep the label flat and the camera steady.", false],
     IMAGE_UNSUPPORTED: ["quality", "Photo format unavailable", "Choose a JPEG, PNG, or WebP image instead.", false],
     OCR_TIMEOUT: ["network", "This is taking longer than expected", "ROOTS could not finish reading this image.", true],
-    OCR_NETWORK: ["network", "No connection", "Label reading requires an internet connection.", true],
+    OCR_NETWORK: ["network", "No connection", "Label reading needs internet on this device. Enter the ingredients manually, or reconnect and try the photo again.", true],
+    OCR_LOCAL_UNAVAILABLE: ["capability", "Offline text reading unavailable", "Enter the ingredients manually, or reconnect and try the photo again.", false],
     OCR_PROVIDER_ERROR: ["provider", "Could not read the label", "Try again, or use a clearer photo with bright, even lighting.", true],
     OCR_UNAVAILABLE: ["provider", "Label reading unavailable", "Try again when label scanning is available.", true],
     OCR_RATE_LIMITED: ["provider", "Too many scan attempts", "Wait about a minute, then try the label again.", true],
@@ -73,12 +75,14 @@
     crop_too_small: ["blocking", "Crop is too small", "The full ingredient list may not be visible."],
     incomplete_label: ["blocking", "Incomplete label", "Some ingredient information may be missing."],
     translation_uncertain: ["caution", "Translation needs review", "Some ingredient names may not have translated correctly."],
+    local_ocr_unverified: ["caution", "Review detected text", "Offline text detection should be compared with the package label."],
   });
 
   let active = null;
   let sequence = 0;
   let onlineHandler = null;
   let offlineHandler = null;
+  let connectivityUnsubscribe = null;
   let initialized = false;
 
   const nowIso = () => new Date().toISOString();
@@ -232,6 +236,7 @@
       source: options?.source || {}, warnings: [], error: null, result: null, metrics: {},
       timers: new Set(), cleanupCallbacks: [], abortController: new AbortController(),
       retryHandler: options?.retry || null, callbacks: options || {}, cleaned: false,
+      performanceTask: root.ROOTS_PERFORMANCE?.startTask?.("time_to_first_useful_result", { source: options?.type === "barcode" ? "barcode" : "label" }),
     };
     setControlsDisabled(true);
     renderStage();
@@ -301,6 +306,7 @@
       hide();
       setControlsDisabled(false);
       active = null;
+      root.ROOTS_PERFORMANCE?.endTask?.(session.performanceTask, { status: "complete", durationMs: Date.now() - Date.parse(session.startedAt) });
       debug("completed", { sessionId: session.id, duration: Date.now() - Date.parse(session.startedAt) });
       session.callbacks.onComplete?.(result, clonePublic(session));
       return true;
@@ -322,6 +328,7 @@
     hide();
     setControlsDisabled(false);
     active = null;
+    root.ROOTS_PERFORMANCE?.endTask?.(session.performanceTask, { status: "canceled" });
     debug("canceled", { sessionId: session.id, duration: Date.now() - Date.parse(session.startedAt) });
     session.callbacks.onCancel?.(clonePublic(session));
     return true;
@@ -370,7 +377,10 @@
   }
 
   function reset() {
-    if (active) clearResources(active);
+    if (active) {
+      clearResources(active);
+      root.ROOTS_PERFORMANCE?.endTask?.(active.performanceTask, { status: "reset" });
+    }
     active = null;
     root.ROOTS_PROCESSING_ANIMATION?.reset?.();
     hide();
@@ -419,15 +429,16 @@
         message: "This internet-required step may not finish.",
       });
     };
-    root.addEventListener?.("online", onlineHandler);
-    root.addEventListener?.("offline", offlineHandler);
+    connectivityUnsubscribe = root.ROOTS_CONNECTIVITY?.subscribe?.((connection) => connection.offline ? offlineHandler() : onlineHandler()) || null;
   }
 
   function destroy() {
     reset();
     initialized = false;
-    root.removeEventListener?.("online", onlineHandler);
-    root.removeEventListener?.("offline", offlineHandler);
+    connectivityUnsubscribe?.();
+    connectivityUnsubscribe = null;
+    onlineHandler = null;
+    offlineHandler = null;
   }
 
   root.ROOTS_SCAN_PROCESSING = {

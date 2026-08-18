@@ -13,7 +13,7 @@
       .replace(/^[\s,;:.]+/,"").replace(/[\s,;:.]+$/,"").replace(/\)+$/,"").trim();
     normalizedName = normalizedName.replace(/\bnatural flavours?\b/g,"natural flavors").replace(/\bground nut\b/g,"groundnut");
     const isFreeClaim = /\b(peanut|dairy|egg|gluten|soy|nut)[ -]free\b/.test(normalizedName);
-    const correction = K.ocrCorrections[normalizedName];
+    const correction = root.ROOTS_OFFLINE_KNOWLEDGE?.getOcrCorrection?.(normalizedName) || K.ocrCorrections[normalizedName];
     const result = Object.freeze({rawText,normalizedName:correction||normalizedName,ocrCorrection:correction||null,isFreeClaim});
     normalizeCache.set(rawText,result);
     if(normalizeCache.size>NORMALIZE_CACHE_LIMIT)normalizeCache.delete(normalizeCache.keys().next().value);

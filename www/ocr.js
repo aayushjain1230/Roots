@@ -7,7 +7,8 @@
    classify_ingredient + term-set lists) decides JAIN / NON_JAIN / UNCERTAIN —
    free, instant, deterministic, including the allergy -> NON_JAIN safety net.
 
-   Provider credentials stay on the backend. There is no on-device OCR fallback.
+   Provider credentials stay on the backend. Local OCR is used when a supported
+   device TextDetector or an installed native ROOTS_LOCAL_OCR_PROVIDER exists.
 
    Exposes window.BIJ_OCR = { scan(file, profile, onProgress) -> Promise<result> }.
    The returned object matches the shape the old /classify endpoint returned, so
@@ -380,6 +381,46 @@
     return (hash >>> 0).toString(36);
   }
   const extractionCache = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+  function localOcrAvailable() {
+    return typeof window.ROOTS_LOCAL_OCR_PROVIDER?.extractText === "function" || typeof window.TextDetector === "function";
+  }
+  async function localExtract(file, onProgress, options) {
+    const task = window.ROOTS_PERFORMANCE?.startTask?.("ocr_local", { source: "device" });
+    let taskStatus = "failed";
+    try {
+      onProgress?.(0.1);
+      let result;
+      if (typeof window.ROOTS_LOCAL_OCR_PROVIDER?.extractText === "function") {
+        result = await window.ROOTS_LOCAL_OCR_PROVIDER.extractText(file, { signal: options?.signal });
+      } else if (typeof window.TextDetector === "function" && typeof createImageBitmap === "function") {
+        const bitmap = await createImageBitmap(file);
+        try { result = await new window.TextDetector().detect(bitmap); }
+        finally { bitmap.close?.(); }
+      } else {
+        throw Object.assign(new Error("Offline text reading is unavailable on this device."), { code: "OCR_LOCAL_UNAVAILABLE" });
+      }
+      const segments = Array.isArray(result) ? result : Array.isArray(result?.segments) ? result.segments : [];
+      const text = String(result?.text || segments.map((item) => item.rawValue || item.text || "").filter(Boolean).join("\n")).trim();
+      if (!text) throw Object.assign(new Error("No label text was detected."), { code: "OCR_EMPTY_TEXT" });
+      const lowConfidence = segments.some((item) => {
+        const confidence = Number(item?.confidence);
+        return Number.isFinite(confidence) && confidence < (confidence > 1 ? 65 : 0.65);
+      });
+      onProgress?.(1);
+      taskStatus = "complete";
+      return {
+        sourceType: "label_photo", originalLanguage: "und", detectedLanguage: "und", translatedLanguage: "",
+        originalText: text, translatedText: "", ingredientTextOriginal: text, ingredientTextTranslated: "",
+        allergenTextOriginal: "", allergenTextTranslated: "", productName: "", brand: "",
+        extractionProvider: "local_device_ocr", extractionVersion: 1, offline: window.ROOTS_CONNECTIVITY?.get?.().offline === true,
+        verificationScope: "scanned_label_only",
+        extractionWarnings: [
+          { code: "local_ocr_unverified", message: "Review the locally detected text against the package label.", action: "Review Ingredients" },
+          ...(lowConfidence ? [{ code: "low_ocr_quality", message: "Some locally detected words are uncertain. Compare them with the package label.", action: "Review Ingredients" }] : []),
+        ],
+      };
+    } finally { window.ROOTS_PERFORMANCE?.endTask?.(task, { status: taskStatus }); }
+  }
   async function extractOnce(file, apiKey, onProgress, options) {
     if (!extractionCache || (typeof file !== "object" && typeof file !== "function")) return geminiExtract(file, apiKey, onProgress, options);
     const cached = extractionCache.get(file);
@@ -541,8 +582,27 @@
   // it never produces the final dietary verdict.
   async function extractLabel(file, onProgress, options) {
     if (!file) throw new Error("No image to scan.");
+    options = options || {};
+    const connection = window.ROOTS_CONNECTIVITY?.get?.();
+    // Browser TextDetector support is experimental and some implementations
+    // advertise the API but return no label text. Only make local OCR the
+    // default while actually offline. Online callers may explicitly request a
+    // local-first attempt, but a failed local attempt must fall through to the
+    // protected provider instead of ending the scan immediately.
+    if (localOcrAvailable() && (connection?.offline || options.preferLocal === true)) {
+      try {
+        return await localExtract(file, onProgress, options);
+      } catch (error) {
+        if (connection?.offline || error?.name === "AbortError") throw error;
+        onProgress?.(0.05);
+      }
+    }
+    if (connection?.offline) throw Object.assign(new Error("Offline text reading is unavailable on this device."), { code: "OCR_LOCAL_UNAVAILABLE", alternativeActions: ["manual_entry", "review_photo"] });
     if (!apiBase()) throw new Error("Label scanning is not configured for this build.");
     const out = await extractOnce(file, "", onProgress, options) || {};
+    if (!out || typeof out !== "object" || Array.isArray(out)) {
+      throw Object.assign(new Error("The label response could not be read."), { code: "OCR_INVALID_RESPONSE", alternativeActions: ["review_photo", "manual_entry"] });
+    }
     const warnings = Array.isArray(out.warnings) ? out.warnings.map((code) => ({
       code: String(code),
       message: String(code).replace(/_/g, " "),
@@ -553,6 +613,13 @@
       message: "We could not read the full ingredient label clearly.",
       action: "Retake Photo",
     });
+    const visibleIngredientText = String(out.ingredient_text_original || out.ingredient_text_translated || "").trim();
+    if (!visibleIngredientText) {
+      throw Object.assign(new Error("No ingredient list was detected in this photo."), {
+        code: "OCR_EMPTY_TEXT",
+        alternativeActions: ["review_photo", "manual_entry", "retake"],
+      });
+    }
     if (onProgress) onProgress(1);
     return {
       sourceType: "label_photo",
@@ -656,6 +723,8 @@
 
   window.BIJ_OCR = {
     extractLabel,
+    localOcrAvailable,
+    extractLocal: localExtract,
     scan,
     analyze,
     translateIngredientList,

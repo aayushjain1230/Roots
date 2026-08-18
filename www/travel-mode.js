@@ -29,6 +29,8 @@
     const base=root.ROOTS_DINING_CARD.generate({profile,restaurant:options?.restaurant||{},questionSet:options?.questionSet});
     const allergyPhrases=pack?.sections?.allergens||[], dietaryPhrases=pack?.sections?.dietaryRestrictions||[], translatedQuestions=new Map((options?.translatedQuestions?.questions||[]).map((item)=>[item.id,item]));
     const card={schemaVersion:1,id:`travel-card-${Date.now().toString(36)}`,destination:destinationRecord,language,currencyCode:destinationRecord.currencyCode,profileFingerprint:root.ROOTS_TRAVEL_PACKS.fingerprint(profile),profileId:profile.id,contentLevel:options?.contentLevel||"standard",sourceCard:base,
+      effectiveRules:root.ROOTS_EFFECTIVE_RULES?.expand?.(profile)||null,
+      evidenceContext:{questionSetId:options?.questionSet?.id||null,sourceEvidenceIds:[...new Set((options?.questionSet?.questions||[]).flatMap((item)=>item.sourceEvidenceIds||[]))],generatedFromDeterministicQuestions:true},
       sections:{allergies:allergyPhrases,religiousAndDietary:dietaryPhrases,questions:(options?.questionSet?.questions||[]).map((item)=>({id:item.id,sourceText:item.question,translatedText:translatedQuestions.get(item.id)?.question||root.ROOTS_TRAVEL_GLOSSARY.adaptQuestion(item.question,destinationRecord.countryCode),transliteration:translatedQuestions.get(item.id)?.transliteration||"",sourceQuestionId:item.id,sourceEvidenceIds:item.sourceEvidenceIds,priority:item.priority,translationStatus:translatedQuestions.has(item.id)?"saved_translation":"regional_wording"})),thankYou:pack?.sections?.thankYou||[]},
       translationSource:pack?"offline_pack":"source_only",createdAt:new Date().toISOString(),profileUpdatedAt:profile.updatedAt};
     await root.ROOTS_TRAVEL_STORAGE.put("cards",card); return card;

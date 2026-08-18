@@ -10,7 +10,7 @@
     const resolved = preference === "system" ? (media.matches ? "dark" : "light") : preference;
     document.documentElement.dataset.theme = resolved;
     document.documentElement.style.colorScheme = resolved;
-    const color = resolved === "dark" ? "#15171C" : "#F7F7F5";
+    const color = resolved === "dark" ? "#15171C" : "#F5FAEF";
     document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => { meta.content = color; });
     document.querySelectorAll('input[name="appearance"]').forEach((input) => {
       input.checked = input.value === preference;

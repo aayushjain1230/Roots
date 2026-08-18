@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ROOTS">
-  <rect width="512" height="512" rx="112" fill="#2B3A55"/>
-  <path d="M144 266l72 72 156-166" fill="none" stroke="#fff" stroke-width="52" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="378" cy="150" r="38" fill="#E8785A"/>
+  <rect width="512" height="512" rx="112" fill="#7A4B32"/>
+  <g fill="none" stroke="#F4E6D8" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 78v148M256 158c-70 20-116 64-146 120M256 158c70 20 116 64 146 120"/>
+    <path d="M194 196c-10 66-46 112-96 150M318 196c10 66 46 112 96 150M256 220v214"/>
+    <path d="M256 290c-54 24-90 66-110 120M256 290c54 24 90 66 110 120M256 366l-42 82M256 366l42 82"/>
+  </g>
 </svg>

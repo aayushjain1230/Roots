@@ -13,6 +13,7 @@ class MemoryStorage {
 }
 
 global.localStorage = new MemoryStorage();
+require(path.join(__dirname, "..", "www", "connectivity.js"));
 require(path.join(__dirname, "..", "www", "restaurant-provider.js"));
 require(path.join(__dirname, "..", "www", "restaurant-storage.js"));
 require(path.join(__dirname, "..", "www", "restaurant-search.js"));
@@ -20,7 +21,7 @@ const Provider = global.ROOTS_RESTAURANT_PROVIDER;
 const Storage = global.ROOTS_RESTAURANT_STORAGE;
 const Search = global.ROOTS_RESTAURANT_SEARCH;
 const location = { latitude: 40.7128, longitude: -74.006, label: "New York, NY" };
-const reset = () => { global.localStorage = new MemoryStorage(); Provider.resetProvider(); };
+const reset = () => { global.localStorage = new MemoryStorage(); Provider.resetProvider(); global.ROOTS_CONNECTIVITY.setForTesting("ONLINE"); };
 
 test("provider interface is abstract and rejects incomplete implementations", () => {
   reset();
@@ -117,13 +118,12 @@ test("autocomplete provider remains replaceable", async () => {
 test("offline searches use cached lists and never cache menus", async () => {
   reset();
   Storage.cacheResults("Pizza", location, 10, [{ id: "r1", name: "Cached Pizza" }], { provider: "test" });
-  const originalNavigator = global.navigator;
-  Object.defineProperty(global, "navigator", { configurable: true, value: { onLine: false } });
+  global.ROOTS_CONNECTIVITY.setForTesting("OFFLINE");
   const result = await Search.searchRestaurants({ meal: "Pizza", location, radius: 10 });
   assert.equal(result.cached, true);
   const stored = global.localStorage.getItem(Storage.keys.cache);
   assert.doesNotMatch(stored, /menuItems|menuText|dishes/);
-  Object.defineProperty(global, "navigator", { configurable: true, value: originalNavigator });
+  global.ROOTS_CONNECTIVITY.setForTesting("ONLINE");
 });
 
 test("timeout and cancellation normalize to stable provider errors", async () => {

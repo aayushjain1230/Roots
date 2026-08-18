@@ -2,12 +2,12 @@
   "use strict";
   const loaded = new Set(), inflight = new Map();
   const GROUPS = Object.freeze({
-    assistant: ["assistant.js"],
+    assistant: ["recipe-meal-engine.js", "assistant.js"],
     saved: ["shopping.js"],
     restaurants: [
       "restaurant-provider.js", "restaurant-storage.js", "restaurant-search.js", "restaurant-menu-provider.js",
       "restaurant-menu-parser.js", "restaurant-menu-storage.js", "restaurant-menu-ocr.js", "restaurant-menu-import.js",
-      "restaurant-menu-review.js", "restaurant-modifier-engine.js", "restaurant-evidence-engine.js",
+      "restaurant-menu-review.js", "restaurant-modifier-engine.js", "restaurant-cross-contact.js", "restaurant-evidence-engine.js",
       "restaurant-compatibility-report.js", "restaurant-report-ui.js", "restaurant-ranking.js",
       "restaurant-ranking-storage.js", "restaurant-comparison.js", "restaurant-meal-engine.js",
       "restaurant-meal-storage.js", "restaurant-order-history.js", "restaurant-memory-search.js",

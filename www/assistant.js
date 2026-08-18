@@ -71,11 +71,15 @@
     chatHistory.push({ role: "user", text: q });
     renderChat(true);
     try {
-      const priorTurns = chatHistory.slice(0, -1).slice(-8); // recent conversation context
+      const priorTurns = chatHistory.slice(0, -1).slice(-8);
+      const structured = window.ROOTS_ASK_CONTEXT?.build?.({}) || null;
       const ctx = recentScansContext();
-      const prompt = `${aiGuidance()}\n\n${profileText()}${ctx ? "\n\n" + ctx : ""}\n\nUser question: ${q}`;
-      const answer = await window.BIJ_OCR.generateText(prompt, { history: priorTurns, temperature: 0.4 });
-      chatHistory.push({ role: "assistant", text: answer });
+      const prompt = `${aiGuidance()}\n\n${profileText()}${ctx ? "\n\n" + ctx : ""}\n\nStructured trusted context:\n${JSON.stringify(structured)}\n\n` +
+        `Answer only from that context. If it is insufficient, say so. Return JSON {"answer":"...","usedEvidenceIds":[],"unknownsAcknowledged":true}. ` +
+        `Every used evidence ID must come from allowedEvidenceIds. User question: ${q}`;
+      const raw = await window.BIJ_OCR.generateText(prompt, { history: priorTurns, temperature: 0.2, json: true, task: "ask" });
+      const validated = window.ROOTS_ASK_CONTEXT?.validateResponse?.(raw, structured);
+      chatHistory.push({ role: "assistant", text: validated?.answer || window.ROOTS_ASK_CONTEXT?.fallback?.(structured) || "I don't know based on the available evidence." });
     } catch (err) {
       chatHistory.push({ role: "assistant", text: (err && err.message) || "Sorry, something went wrong." });
     }
@@ -88,13 +92,13 @@
   renderChat(false);
 
   /* ---------- Shared run helper for Recipe & Meals ---------- */
-  async function runInto(btn, outEl, buildPrompt, emptyMsg) {
+  async function runInto(btn, outEl, buildPrompt, emptyMsg, finalize) {
     const original = btn.textContent;
     btn.disabled = true; btn.textContent = "Working…";
     outEl.innerHTML = `<div class="spinner"></div>`;
     try {
       const text = await window.BIJ_OCR.generateText(buildPrompt(), { temperature: 0.6, task: "recipe" });
-      outEl.innerHTML = `<div class="assistant-answer">${mdLite(text)}</div>`;
+      outEl.innerHTML = finalize ? finalize(text) : `<div class="assistant-answer">${mdLite(text)}</div>`;
     } catch (err) {
       outEl.innerHTML = `<p class="empty-state">${escapeHtml((err && err.message) || emptyMsg)}</p>`;
     } finally {
@@ -107,10 +111,15 @@
     const recipe = ($("recipeInput").value || "").trim();
     if (!recipe) { $("recipeOut").innerHTML = `<p class="empty-state">Paste a recipe first.</p>`; return; }
     runInto($("recipeBtn"), $("recipeOut"), () =>
-      `${profileText()}\n\nConvert this recipe so it fully fits the user's diet. Replace any non-compliant ` +
+      `${profileText()}\n\nSuggest a transformed version of this recipe for the user's profile. Replace known conflicts, but do not claim the result is verified or safe. ` +
       `ingredient with a good substitution. Respond with: a **Title**, an **Ingredients** list, **Steps**, ` +
       `and a short **Swaps made** note. Keep it practical.\n\nRecipe:\n${recipe}`,
-      "Couldn't convert that recipe.");
+      "Couldn't convert that recipe.",
+      (text) => {
+        const check = window.ROOTS_RECIPE_MEAL_ENGINE?.analyzeIngredients?.(text, getDietProfile());
+        const label = check?.status === "MATCH" ? "No known conflicts in the generated ingredient text" : check?.status === "CONFLICT" ? "Generated recipe still has a conflict" : "Generated recipe needs verification";
+        return `<div class="assistant-answer"><p><strong>${escapeHtml(label)}</strong></p><p>${escapeHtml(check?.reason || "Review every ingredient before using this suggestion.")}</p>${mdLite(text)}</div>`;
+      });
   });
 
   /* ---------- Meal builder ---------- */
@@ -128,6 +137,7 @@
           <b>${escapeHtml(m.name || "Meal idea")}</b>
           ${m.reason ? `<p>${escapeHtml(m.reason)}</p>` : ""}
           ${m.modification ? `<p class="meal-mod">Tip: ${escapeHtml(m.modification)}</p>` : ""}
+          <p class="meal-validation"><strong>${escapeHtml(m.deterministicStatus === "MATCH" ? "No known conflicts" : m.deterministicStatus === "CONFLICT" ? "Conflict found" : "Needs verification")}</strong> Â· ${escapeHtml(m.deterministicReason || "Review the ingredients.")}</p>
           ${ingredients.length ? `
             <div class="meal-ingredients">${ingredients.map(escapeHtml).join(" · ")}</div>
             <button type="button" class="add-to-shop-btn" data-idx="${i}">+ Add ingredients to Shopping List</button>
@@ -154,7 +164,7 @@
     btn.disabled = true; btn.textContent = "Working…";
     outEl.innerHTML = `<div class="spinner"></div>`;
     try {
-      const prompt = `${profileText()}\n\nSuggest 3 meal or snack ideas that fit the user's diet for this ` +
+      const prompt = `${profileText()}\n\nSuggest 3 meal or snack candidates for deterministic checking for this ` +
         `request: "${req}". Respond ONLY with a JSON array of exactly 3 objects: ` +
         `{"name","reason","modification","ingredients"} — "reason" is a one-line reason it fits, ` +
         `"modification" is any quick tweak needed to keep it compliant (empty string if none), and ` +
@@ -163,7 +173,8 @@
       const text = await window.BIJ_OCR.generateText(prompt, { json: true, temperature: 0.6, task: "meals" });
       let meals = [];
       try { meals = JSON.parse(text); } catch (_) { meals = []; }
-      renderMeals(Array.isArray(meals) ? meals : []);
+      const validated = window.ROOTS_RECIPE_MEAL_ENGINE?.validateMealIdeas?.(meals, getDietProfile()) || [];
+      renderMeals(validated);
     } catch (err) {
       outEl.innerHTML = `<p class="empty-state">${escapeHtml((err && err.message) || "Couldn't suggest meals right now.")}</p>`;
     } finally {

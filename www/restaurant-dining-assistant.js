@@ -77,7 +77,7 @@ Structured ROOTS context: ${JSON.stringify(context)}`;
     const key = hash({ context, question: clean(question), mode, history: list(options?.history).slice(-8) });
     const cached = readCache().find((item) => item.key === key);
     if (cached) return { ...cached.result, cached: true };
-    if (root.navigator?.onLine === false || !root.BIJ_OCR?.generateText) return fallbackResult;
+    if (root.ROOTS_CONNECTIVITY?.get?.().offline === true || !root.BIJ_OCR?.generateText) return fallbackResult;
     let parsed;
     try {
       parsed = JSON.parse(await root.BIJ_OCR.generateText(prompt(context, question, mode, options?.history), { temperature: 0.1, json: true, task: "dining-explanation" }));

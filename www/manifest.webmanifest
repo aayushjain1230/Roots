@@ -1,13 +1,13 @@
 {
-  "name": "ROOTS",
-  "short_name": "ROOTS",
+  "name": "Roots",
+  "short_name": "Roots",
   "description": "Scan food labels and barcodes for clear, personalized dietary guidance.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F7F7F5",
-  "theme_color": "#2B3A55",
+  "background_color": "#F5FAEF",
+  "theme_color": "#344B82",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
