@@ -36,7 +36,7 @@ except ImportError:  # pragma: no cover - deployment dependency check reports th
 router = APIRouter(prefix="/v1")
 logger = logging.getLogger("roots_security")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 PROVIDER_TIMEOUT = min(60, max(5, int(os.getenv("PROVIDER_TIMEOUT_SECONDS", "30"))))
 MAX_IMAGE_BYTES = min(10_000_000, max(100_000, int(os.getenv("MAX_IMAGE_BYTES", "6291456"))))

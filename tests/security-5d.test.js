@@ -33,6 +33,8 @@ test("CSP has no unsafe-eval, wildcard script source, or inline script", () => {
   const policy = html.match(/Content-Security-Policy[^>]+content="([^"]+)"/)?.[1] || "";
   assert.match(policy, /script-src 'self'/);
   assert.doesNotMatch(policy, /unsafe-eval|script-src[^;]*\*/);
+  assert.match(policy, /https:\/\/roots-94q3\.onrender\.com/);
+  assert.match(html, /<meta name="roots-api-base" content="https:\/\/roots-94q3\.onrender\.com">/);
   assert.doesNotMatch(html, /<script(?![^>]*src=)[^>]*>[\s\S]*?<\/script>/);
 });
 
@@ -55,6 +57,7 @@ test("backend uses restricted CORS, fixed provider host, schemas, and rate limit
   assert.match(security, /SlidingLimiter/);
   assert.match(security, /extra="forbid"/);
   assert.match(security, /x-goog-api-key/);
+  assert.match(security, /gemini-2\.5-flash/);
   assert.doesNotMatch(security, /detail=.*exc|str\(exc\)/);
 });
 

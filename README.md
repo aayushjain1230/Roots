@@ -1007,9 +1007,9 @@ to:
 Example:
 
 GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-2.5-flash
 
-ALLOWED_ORIGINS=http://localhost:5500,http://127.0.0.1:5500
+ALLOWED_ORIGINS=http://localhost:5500,http://127.0.0.1:5500,https://foodroots.netlify.app
 
 HOST=127.0.0.1
 PORT=8000

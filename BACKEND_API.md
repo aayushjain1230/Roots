@@ -17,7 +17,7 @@ Unknown JSON fields return 422. Unsupported image type/signature returns 415, ov
 rate limit returns 429 with stable `rate_limited`, missing provider configuration returns 503, and
 sanitized upstream failure returns 502/503. There is no generic proxy or arbitrary URL endpoint.
 
-Environment variables: `GEMINI_API_KEY`, `GEMINI_MODEL`, `PROVIDER_TIMEOUT_SECONDS`,
+Environment variables: `GEMINI_API_KEY`, `GEMINI_MODEL` (defaults to `gemini-2.5-flash`), `PROVIDER_TIMEOUT_SECONDS`,
 `MAX_IMAGE_BYTES`, `MAX_IMAGE_PIXELS`, `ALLOWED_ORIGINS`, `ENVIRONMENT`, `HOST`, and `PORT`.
-Existing optional restaurant provider variables remain documented in `.env.example`.
+Set `ALLOWED_ORIGINS` to include the deployed frontend origin, for example `https://foodroots.netlify.app`. Existing optional restaurant provider variables remain documented in `.env.example`.
 
