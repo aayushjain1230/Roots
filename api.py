@@ -1410,7 +1410,7 @@ def overpass_restaurant_discovery(lat: float, lng: float, radius_meters: int) ->
         );
         out center tags 60;
     """
-    data = http_json("https://overpass-api.de/api/interpreter", method="POST", body=urllib.parse.urlencode({"data": query}), headers={**osm_headers(), "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}, timeout=OVERPASS_TIMEOUT_SECONDS)
+    data = http_json(f"https://overpass-api.de/api/interpreter?{urllib.parse.urlencode({'data': query})}", headers=osm_headers(), timeout=OVERPASS_TIMEOUT_SECONDS)
     if not isinstance(data, dict):
         return []
     restaurants = [normalize_osm_restaurant(item, lat, lng) for item in data.get("elements", [])]
