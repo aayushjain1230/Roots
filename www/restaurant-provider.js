@@ -7,6 +7,8 @@
     TIMEOUT: "timeout",
     NETWORK: "network",
     INVALID_RESPONSE: "invalid_response",
+    API_NOT_CONFIGURED: "api_not_configured",
+    API_HTTP: "api_http",
     CANCELLED: "cancelled",
   });
 
@@ -45,15 +47,31 @@
     const distanceMiles = Number(value.distanceMiles);
     const rating = Number(value.rating);
     const priceRange = /^\${1,4}$/.test(String(value.priceRange || "")) ? String(value.priceRange) : "";
+    const coordinates = value.coordinates && typeof value.coordinates === "object" ? {
+      latitude: Number(value.coordinates.latitude), longitude: Number(value.coordinates.longitude),
+    } : null;
+    const safeWebsite = (() => { try { const parsed = new URL(String(value.website || "")); return parsed.protocol === "https:" ? parsed.href : ""; } catch (_) { return ""; } })();
+    const tags = Array.isArray(value.dietaryTags) ? value.dietaryTags.map((item) => String(item || "").trim().slice(0, 60)).filter(Boolean).slice(0, 12) : [];
     return {
       id, name,
+      provider: String(value.provider || "").trim().slice(0, 60),
+      providerEntityType: String(value.providerEntityType || "").trim().slice(0, 40),
+      providerEntityId: String(value.providerEntityId || "").trim().slice(0, 120),
+      brand: String(value.brand || "").trim().slice(0, 120),
       cuisine: String(value.cuisine || "").trim().slice(0, 100),
       image,
+      coordinates: coordinates && Number.isFinite(coordinates.latitude) && Number.isFinite(coordinates.longitude) ? coordinates : null,
+      address: String(value.address || "").trim().slice(0, 220),
+      website: safeWebsite,
+      phone: String(value.phone || "").trim().slice(0, 80),
+      openingHours: String(value.openingHours || "").trim().slice(0, 220),
+      dietaryTags: tags,
+      discoveredAt: String(value.discoveredAt || "").trim().slice(0, 40),
       distanceMiles: Number.isFinite(distanceMiles) && distanceMiles >= 0 ? distanceMiles : null,
       openStatus: ["open", "closed", "unknown"].includes(value.openStatus) ? value.openStatus : "unknown",
       priceRange,
       rating: Number.isFinite(rating) && rating >= 0 && rating <= 5 ? rating : null,
-      menuAvailable: value.menuAvailable === true,
+      menuAvailable: value.menuAvailable === true || !!safeWebsite,
       providerMetadata: value.providerMetadata && typeof value.providerMetadata === "object" ? value.providerMetadata : {},
     };
   }
@@ -85,9 +103,47 @@
     return new RestaurantProviderError(ERROR_CODES.NETWORK);
   }
 
+  function endpoint(path) {
+    const base = root.ROOTS_RUNTIME_CONFIG?.API_BASE_URL || "";
+    if (!base) throw new RestaurantProviderError(ERROR_CODES.API_NOT_CONFIGURED, "Restaurant search is not configured for this build.");
+    return `${base}${path}`;
+  }
+  function mapHttpError(response, stage) {
+    const detail = response?.data?.detail;
+    const message = typeof detail === "string" ? detail : detail?.message || "Restaurant service request failed.";
+    const error = new RestaurantProviderError(ERROR_CODES.API_HTTP, message);
+    error.status = response?.status;
+    error.stage = stage;
+    return error;
+  }
+  class BackendRestaurantProvider extends RestaurantProvider {
+    async searchRestaurants(input) {
+      const location = validateLocation(input?.location);
+      const response = await root.ROOTS_NETWORK.request(endpoint("/v1/restaurants/discover"), {
+        method: "POST", classification: "restaurant_discovery", timeoutMs: 18000, retries: 1, signal: input?.signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meal: input?.meal || "anything", location, radiusMiles: input?.radius || 5 }),
+      });
+      if (!response.ok) throw mapHttpError(response, "restaurant_discovery");
+      return { provider: response.data?.provider || "roots_backend", restaurants: response.data?.restaurants || [], metadata: response.data?.metadata || {} };
+    }
+    async autocomplete(input) {
+      const query = encodeURIComponent(String(input?.query || "").trim());
+      const response = await root.ROOTS_NETWORK.request(endpoint(`/v1/restaurants/geocode?q=${query}`), {
+        method: "GET", classification: "restaurant_geocode", timeoutMs: 10000, retries: 1, signal: input?.signal,
+      });
+      if (!response.ok) throw mapHttpError(response, "restaurant_geocode");
+      return response.data?.results || [];
+    }
+    async reverseGeocode(input) {
+      const location = validateLocation(input?.location || input);
+      return location || null;
+    }
+  }
   let provider = new UnconfiguredRestaurantProvider();
   root.ROOTS_RESTAURANT_PROVIDER = {
     RestaurantProvider,
+    BackendRestaurantProvider,
     RestaurantProviderError,
     ERROR_CODES,
     setProvider(next) {
@@ -98,9 +154,11 @@
     },
     getProvider: () => provider,
     resetProvider: () => { provider = new UnconfiguredRestaurantProvider(); },
+    installDefaultProvider() { if (root.ROOTS_RUNTIME_CONFIG?.API_BASE_URL && root.ROOTS_NETWORK) provider = new BackendRestaurantProvider(); return provider; },
     validateLocation,
     normalizeRestaurant,
     withTimeout,
     normalizeError,
   };
+  if (root.ROOTS_RUNTIME_CONFIG?.API_BASE_URL && root.ROOTS_NETWORK) root.ROOTS_RESTAURANT_PROVIDER.installDefaultProvider();
 })(typeof window !== "undefined" ? window : globalThis);

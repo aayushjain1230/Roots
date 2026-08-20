@@ -24,6 +24,8 @@
   <script src="saved-navigation.js" defer></script>
   <script src="performance-monitor.js" defer></script>
   <script src="connectivity.js" defer></script>
+  <script src="error-taxonomy.js" defer></script>
+  <script src="install-id.js" defer></script>
   <script src="sync-queue.js" defer></script>
   <script src="network-client.js" defer></script>
   <script src="runtime-config.js" defer></script>
@@ -65,6 +67,7 @@
   <script src="dietary-rules.js" defer></script>
   <script src="formulation-tracker.js" defer></script>
   <script src="scan-pipeline.js" defer></script>
+  <script src="local-ocr-provider.js" defer></script>
   <!-- Provider credentials are backend-only; the frontend receives only a public API base URL. -->
   <script src="ocr.js" defer></script>
   <script src="foodfacts.js" defer></script>
@@ -174,20 +177,34 @@
     </section>
 
     <section id="restaurantsView" class="view" aria-labelledby="restaurants-title">
+      <header class="home-header restaurant-app-header" aria-label="ROOTS Restaurants">
+        <div class="brand-title">
+          <svg class="roots-brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v7M12 7.5C9 8.4 7 10.4 5.7 13M12 7.5c3 .9 5 2.9 6.3 5.5"></path>
+            <path d="M9.2 9.2c-.4 3-2 5.2-4.7 7.1M14.8 9.2c.4 3 2 5.2 4.7 7.1M12 10v10"></path>
+            <path d="M12 13.5c-2.5 1.1-4.1 3-5 5.5M12 13.5c2.5 1.1 4.1 3 5 5.5M12 17l-2 4M12 17l2 4"></path>
+          </svg>
+          <span class="home-brand-copy"><span class="restaurant-brand-name">Roots</span><small>Restaurants</small></span>
+        </div>
+      </header>
       <header class="restaurant-header">
-        <svg class="restaurant-illustration" viewBox="0 0 160 128" aria-hidden="true"><path d="M29 91h102M42 91c3-27 18-42 38-42s35 15 38 42M80 49V37M73 37h14" /><path d="M52 91c8-9 16-14 28-14s20 5 28 14" /><circle cx="44" cy="36" r="7"/><path d="M44 43v18M35 53h18"/></svg>
-        <h2 id="restaurants-title">Find somewhere<br>you can actually eat.</h2>
-        <p>Search by meal, cuisine, or place.</p>
+        <section class="restaurant-hero" aria-label="Restaurant scene">
+          <img src="assets/restaurants/restaurant-hero.jpg" alt="Warm restaurant interior" loading="eager" decoding="async">
+        </section>
+        <div class="restaurant-intro">
+          <h2 id="restaurants-title">Find somewhere<br>you can actually eat.</h2>
+          <p>Search by meal, cuisine, or place</p>
+        </div>
       </header>
       <p id="restaurant-status" class="restaurant-status" role="status" aria-live="polite"></p>
 
       <section id="restaurant-location-step" class="restaurant-step" aria-labelledby="restaurant-location-title">
-        <div class="restaurant-step-heading"><span>1</span><div><h3 id="restaurant-location-title">Choose location</h3><p>ROOTS asks for location access only when you choose to use it.</p></div></div>
-        <button id="restaurant-use-location" class="primary-btn restaurant-location-primary" type="button">Use My Location</button>
+        <div class="restaurant-step-heading"><div><h3 id="restaurant-location-title">Choose location</h3><p>Roots asks for location access only when you use it.</p></div></div>
+        <button id="restaurant-use-location" class="primary-btn restaurant-location-primary interactive-control" type="button"><svg class="location-button-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.4 7-12a7 7 0 0 0-14 0c0 6.6 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.4"></circle></svg><span>Use my location</span></button>
         <div class="restaurant-divider"><span>or</span></div>
         <form id="restaurant-location-form" class="restaurant-address-form">
-          <label for="restaurant-manual-address">Enter address, city, state, or ZIP code</label>
-          <div><input id="restaurant-manual-address" type="search" autocomplete="street-address" maxlength="180" placeholder="123 Main St or 10001"><button type="submit" class="secondary-btn">Find</button></div>
+          <label class="sr-only" for="restaurant-manual-address">Search city, address, or place</label>
+          <div><input id="restaurant-manual-address" type="search" autocomplete="street-address" maxlength="180" class="address-input" placeholder="City, address, or place"><button type="submit" class="secondary-btn">Find</button></div>
         </form>
         <div id="restaurant-address-suggestions" class="address-suggestions" role="listbox" aria-label="Address suggestions"></div>
         <div id="restaurant-location-actions" class="restaurant-save-actions" hidden><span id="restaurant-selected-location"></span><button id="restaurant-save-home" type="button" class="text-btn">Save as Home</button><button id="restaurant-save-work" type="button" class="text-btn">Save as Work</button><button id="restaurant-save-favorite" type="button" class="text-btn">Save as Favorite</button></div>
@@ -198,7 +215,7 @@
       </section>
 
       <section id="restaurant-meal-step" class="restaurant-step" aria-labelledby="restaurant-meal-title" hidden>
-        <div class="restaurant-step-heading"><span>2</span><div><h3 id="restaurant-meal-title">What are you looking for today?</h3><button id="restaurant-change-location" type="button" class="text-btn">Change location</button></div></div>
+        <div class="restaurant-step-heading"><div><h3 id="restaurant-meal-title">What are you looking for today?</h3><button id="restaurant-change-location" type="button" class="text-btn">Change location</button></div></div>
         <form id="restaurant-meal-form">
           <label for="restaurant-meal-input" class="sr-only">Meal, cuisine, or food</label>
           <div class="restaurant-meal-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 5 5"></path></svg><input id="restaurant-meal-input" type="search" maxlength="120" autocomplete="off" placeholder="Search pizza, ramen, coffee…"><button id="restaurant-search-button" type="submit">Search</button></div>
@@ -211,7 +228,7 @@
       </section>
 
       <section id="restaurant-results-step" class="restaurant-step" aria-labelledby="restaurant-results-title" hidden>
-        <button id="restaurant-back-to-meal" type="button" class="text-btn restaurant-back">← Change search</button>
+        <button id="restaurant-back-to-meal" type="button" class="text-btn restaurant-back">Change search</button>
         <div class="section-head"><h3 id="restaurant-results-title">Restaurant search</h3><p id="restaurant-results-meta" class="muted"></p></div>
         <div class="restaurant-ranking-controls">
           <label for="restaurant-sort">Sort restaurants
@@ -221,6 +238,7 @@
               <option value="evidence">Strongest Evidence</option>
             </select>
           </label>
+          <button id="restaurant-map-toggle" class="secondary-btn restaurant-map-toggle" type="button" aria-pressed="true">List / Map</button>
           <details class="restaurant-filter-panel">
             <summary>Filters <span id="restaurant-filter-count">None active</span></summary>
             <fieldset id="restaurant-ranking-filters"><legend>Filter restaurant results</legend>
@@ -237,6 +255,7 @@
           </details>
         </div>
         <p id="restaurant-results-live" class="sr-only" role="status" aria-live="polite"></p>
+        <section id="restaurant-map-preview" class="restaurant-map-preview" hidden aria-label="Restaurant map links"></section>
         <div id="restaurant-results" class="restaurant-results"></div>
         <section id="restaurant-comparison-panel" class="restaurant-comparison-panel" hidden aria-labelledby="restaurant-comparison-title">
           <div class="section-head with-action"><h3 id="restaurant-comparison-title">Compare restaurants</h3><button id="restaurant-clear-comparison" type="button" class="text-btn">Clear</button></div>
@@ -244,6 +263,7 @@
           <div id="restaurant-comparison-table" class="comparison-scroll"></div>
         </section>
       </section>
+      <section class="restaurant-travel-card" aria-labelledby="restaurant-travel-title"><div><h3 id="restaurant-travel-title">Travel Mode</h3><p class="muted">Create a dining card for another language before you go.</p></div><button type="button" class="secondary-btn" data-open-travel-mode>Open</button></section>
     </section>
 
     <section id="savedView" class="view" aria-labelledby="saved-title">

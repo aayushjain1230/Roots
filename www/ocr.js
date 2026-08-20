@@ -248,7 +248,7 @@
     }
 
     if (hasTerm(normalized, NON_JAIN_TERMS)) {
-      return { name, category: "JAIN", reason: "Allowed by your current diet profile." };
+      return { name, category: "UNCERTAIN", reason: "This ingredient can conflict with Jain settings, but the active profile did not expose the matching legacy rule. Review with the current ROOTS engine." };
     }
 
     const ambiguousHit = ambiguousReason(normalized);
@@ -382,7 +382,8 @@
   }
   const extractionCache = typeof WeakMap !== "undefined" ? new WeakMap() : null;
   function localOcrAvailable() {
-    return typeof window.ROOTS_LOCAL_OCR_PROVIDER?.extractText === "function" || typeof window.TextDetector === "function";
+    const provider = window.ROOTS_LOCAL_OCR_PROVIDER;
+    return (typeof provider?.extractText === "function" && provider.available?.() !== false) || typeof window.TextDetector === "function";
   }
   async function localExtract(file, onProgress, options) {
     const task = window.ROOTS_PERFORMANCE?.startTask?.("ocr_local", { source: "device" });
@@ -390,14 +391,14 @@
     try {
       onProgress?.(0.1);
       let result;
-      if (typeof window.ROOTS_LOCAL_OCR_PROVIDER?.extractText === "function") {
+      if (typeof window.ROOTS_LOCAL_OCR_PROVIDER?.extractText === "function" && window.ROOTS_LOCAL_OCR_PROVIDER.available?.() !== false) {
         result = await window.ROOTS_LOCAL_OCR_PROVIDER.extractText(file, { signal: options?.signal });
       } else if (typeof window.TextDetector === "function" && typeof createImageBitmap === "function") {
         const bitmap = await createImageBitmap(file);
         try { result = await new window.TextDetector().detect(bitmap); }
         finally { bitmap.close?.(); }
       } else {
-        throw Object.assign(new Error("Offline text reading is unavailable on this device."), { code: "OCR_LOCAL_UNAVAILABLE" });
+        throw Object.assign(new Error("Offline text recognition is unavailable on this device. Enter ingredients manually."), { code: "OCR_LOCAL_UNAVAILABLE" });
       }
       const segments = Array.isArray(result) ? result : Array.isArray(result?.segments) ? result.segments : [];
       const text = String(result?.text || segments.map((item) => item.rawValue || item.text || "").filter(Boolean).join("\n")).trim();
@@ -440,14 +441,18 @@
   }
   async function providerRequest(path, body, options) {
     const url = apiUrl(path);
-    if (!apiBase()) throw new Error("Online services are not configured for this build.");
+    if (!apiBase()) throw (window.ROOTS_ERRORS?.create?.("API_NOT_CONFIGURED") || Object.assign(new Error("Online services are not configured for this build."), { code: "API_NOT_CONFIGURED" }));
     const isForm = body instanceof FormData;
+    const headers = isForm ? {} : { "Content-Type": "application/json" };
+    const installId = window.ROOTS_INSTALL_ID?.get?.();
+    if (installId) headers["X-ROOTS-Install-ID"] = installId;
     const requestOptions = {
       method: "POST",
-      headers: isForm ? {} : { "Content-Type": "application/json" },
+      headers,
       body: isForm ? body : JSON.stringify(body),
       signal: options?.signal, timeoutMs: 35000, retries: 1,
-      dedupeKey: `roots-api:${path}:${requestFingerprint(isForm ? body.get("file")?.size : JSON.stringify(body))}`,
+      dedupeKey: isForm ? null : `roots-api:${path}:${requestFingerprint(JSON.stringify(body))}`,
+      skipDedupe: isForm,
       classification: options?.classification || "provider",
     };
     if (window.ROOTS_NETWORK) {
@@ -538,11 +543,8 @@
       response = await providerRequest("/v1/ocr/label", body, { signal: options.signal, classification: "label_ocr" });
     } catch (error) {
       if (error?.name === "AbortError") throw error;
-      const code = error?.code === "NETWORK_TIMEOUT" ? "OCR_TIMEOUT" : "OCR_NETWORK";
-      throw Object.assign(
-        new Error("Couldn't connect — make sure the ROOTS API is running and try again."),
-        { code }
-      );
+      const mapped = error?.code === "NETWORK_TIMEOUT" ? "REQUEST_TIMEOUT" : error?.code || "API_UNREACHABLE";
+      throw (window.ROOTS_ERRORS?.create?.(mapped, null, { stage: "label_ocr", originalName: error?.name || "Error" }) || Object.assign(error, { code: mapped }));
     }
     if (onProgress) onProgress(0.9);
     if (!response.ok) {
@@ -555,7 +557,7 @@
       // Preserve a safe recovery category without exposing provider or key details.
       throw Object.assign(
         new Error("Label scanning is temporarily unavailable."),
-        { code: statusCodes[response.status] || "OCR_PROVIDER_ERROR" }
+        { code: statusCodes[response.status] || (window.ROOTS_ERRORS?.fromHttpStatus?.(response.status) || "OCR_PROVIDER_FAILED"), debugMetadata: { httpStatus: response.status, stage: "label_ocr" } }
       );
     }
     return response.data;
@@ -597,8 +599,8 @@
         onProgress?.(0.05);
       }
     }
-    if (connection?.offline) throw Object.assign(new Error("Offline text reading is unavailable on this device."), { code: "OCR_LOCAL_UNAVAILABLE", alternativeActions: ["manual_entry", "review_photo"] });
-    if (!apiBase()) throw new Error("Label scanning is not configured for this build.");
+    if (connection?.offline) throw Object.assign(new Error("Offline text recognition is unavailable on this device. Enter ingredients manually."), { code: "OCR_LOCAL_UNAVAILABLE", alternativeActions: ["manual_entry", "review_photo"] });
+    if (!apiBase()) throw (window.ROOTS_ERRORS?.create?.("API_NOT_CONFIGURED") || Object.assign(new Error("Label scanning is not configured for this build."), { code: "API_NOT_CONFIGURED" }));
     const out = await extractOnce(file, "", onProgress, options) || {};
     if (!out || typeof out !== "object" || Array.isArray(out)) {
       throw Object.assign(new Error("The label response could not be read."), { code: "OCR_INVALID_RESPONSE", alternativeActions: ["review_photo", "manual_entry"] });
@@ -702,7 +704,7 @@
         })),
         json_output: !!opts.json,
       }, { classification: `ai_${task}`, signal: opts.signal });
-    } catch (_) { throw new Error("Couldn't connect — check your internet connection and try again."); }
+    } catch (error) { throw (window.ROOTS_ERRORS?.create?.(error?.code || "API_UNREACHABLE") || Object.assign(new Error("The assistant is unavailable."), { code: error?.code || "API_UNREACHABLE" })); }
     if (!response.ok) {
       // Generic message — don't reveal quota/billing/key details to the user.
       throw new Error("The assistant is temporarily unavailable. Please try again in a little while.");
@@ -725,15 +727,10 @@
     extractLabel,
     localOcrAvailable,
     extractLocal: localExtract,
-    scan,
-    analyze,
     translateIngredientList,
     explainEvidence,
     translateStructured,
     generateText,
     hasCloudKey: () => !!apiBase(),
-    // exposed for debugging / unit checks in the console:
-    classifyIngredient,
-    ratio,
   };
 })();

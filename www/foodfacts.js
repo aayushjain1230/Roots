@@ -122,10 +122,10 @@
 
     if (window.ROOTS_CONNECTIVITY?.get?.().offline === true) {
       if (cached) return Object.assign({}, cached, { fromCache: true, offline: true });
-      throw Object.assign(new Error("Product lookup isn’t available offline yet. Scan the ingredient label instead."), { code: "BARCODE_OFFLINE_MISS", alternativeActions: ["scan_label"] });
+      throw Object.assign(new Error("This barcode is not cached on this device. Scan the ingredient label or enter ingredients manually."), { code: "BARCODE_OFFLINE_MISS", alternativeActions: ["scan_label", "manual_entry"] });
     }
 
-    let networkFailed = false;
+    let fetchFailure = null;
     let httpStatus = null;
     for (const variant of barcodeVariants(code)) {
       let result;
@@ -133,7 +133,7 @@
         result = await fetchProduct(variant, options.signal);
       } catch (error) {
         if (error?.name === "AbortError") throw error;
-        networkFailed = true;
+        fetchFailure = error;
         continue;
       }
       if (!result.ok) {
@@ -145,9 +145,15 @@
       return product;
     }
 
-    if (cached) return Object.assign({}, cached, { fromCache: true });
-    if (networkFailed) throw Object.assign(new Error("network"), { code: "BARCODE_LOOKUP_NETWORK" });
-    if (httpStatus) throw Object.assign(new Error("provider"), { code: "BARCODE_LOOKUP_NETWORK", debugMetadata: { httpStatus } });
+    if (cached) return Object.assign({}, cached, { fromCache: true, cacheFallbackReason: fetchFailure ? "lookup_failed" : httpStatus ? "provider_http_error" : "not_found" });
+    if (fetchFailure) {
+      const mapped = window.ROOTS_ERRORS?.classifyFetchError?.(fetchFailure) || fetchFailure.code || "API_UNREACHABLE";
+      throw (window.ROOTS_ERRORS?.create?.(mapped, null, { stage: "barcode_lookup", provider: "open_food_facts", originalName: fetchFailure?.name || "Error" }) || Object.assign(fetchFailure, { code: mapped }));
+    }
+    if (httpStatus) {
+      const mapped = window.ROOTS_ERRORS?.fromHttpStatus?.(httpStatus) || "HTTP_SERVER_ERROR";
+      throw (window.ROOTS_ERRORS?.create?.(mapped, null, { stage: "barcode_lookup", provider: "open_food_facts", httpStatus }) || Object.assign(new Error("Open Food Facts lookup failed."), { code: mapped, debugMetadata: { httpStatus } }));
+    }
     return { found: false, code };
   }
 

@@ -1,8 +1,8 @@
 /* Static app-shell cache only. Provider API and personal data are network-only.
    Supersedes roots-shell-v6b-1 / roots-shell-v6a-1 / roots-shell-v5d-1 / roots-shell-v5c-1 and
    roots-features-v6a-1 / roots-features-v5d-1 / roots-features-v5a-1 after activation. */
-const CACHE = "roots-shell-release-v17";
-const FEATURE_CACHE = "roots-features-release-v17";
+const CACHE = "roots-shell-release-v18";
+const FEATURE_CACHE = "roots-features-release-v18";
 const SHELL = [
   "./",
   "./index.html",
@@ -29,6 +29,8 @@ const SHELL = [
   "./saved-navigation.js",
   "./performance-monitor.js",
   "./connectivity.js",
+  "./error-taxonomy.js",
+  "./install-id.js",
   "./sync-queue.js",
   "./network-client.js",
   "./runtime-config.js",
@@ -58,6 +60,7 @@ const SHELL = [
   "./formulation-tracker.js",
   "./offline-status.js",
   "./scan-pipeline.js",
+  "./local-ocr-provider.js",
   "./ocr.js",
   "./foodfacts.js",
   "./online-enrichment.js",
@@ -93,6 +96,7 @@ const SHELL = [
   "./assets/home/breakfast-parfait.png",
   "./assets/home/lunch-penne.png",
   "./assets/home/dinner-thali.png",
+  "./assets/restaurants/restaurant-hero.jpg",
 ];
 const LAZY_FEATURES = [
   "./assistant.js",

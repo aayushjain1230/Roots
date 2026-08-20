@@ -5,6 +5,8 @@ import html
 import json
 import logging
 import math
+import threading
+import time
 # LEGACY PHASE 2C TRANSITION: universal dietary logic lives in the frontend
 # ROOTS_DIETARY_ENGINE. Do not duplicate new rules into this dormant backend classifier.
 import os
@@ -35,7 +37,7 @@ app = FastAPI(title="ROOTS API", docs_url=None if os.getenv("ENVIRONMENT") == "p
 allowed_origins = [
     value.strip() for value in os.getenv(
         "ALLOWED_ORIGINS",
-        "http://localhost:5500,http://127.0.0.1:5500,https://localhost,capacitor://localhost",
+        "http://localhost:5500,http://127.0.0.1:5500,https://localhost,capacitor://localhost,http://localhost,ionic://localhost",
     ).split(",") if value.strip()
 ]
 app.add_middleware(
@@ -47,6 +49,13 @@ app.add_middleware(
 )
 app.include_router(security_router)
 
+@app.get("/health")
+async def health() -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "providerConfigured": bool(os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY")),
+        "environment": os.getenv("ENVIRONMENT", "development"),
+    }
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
@@ -88,9 +97,15 @@ GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY", "")
 FINDER_RADIUS_METERS = int(os.getenv("FINDER_RADIUS_METERS", "6000"))
 EXPANDED_FINDER_RADIUS_METERS = (15000, 40000, 80000)
 HTTP_TIMEOUT_SECONDS = int(os.getenv("HTTP_TIMEOUT_SECONDS", "7"))
+ROOTS_OSM_CONTACT = os.getenv("ROOTS_OSM_CONTACT", "roots.food.app@gmail.com")
+OSM_USER_AGENT = f"ROOTS/1.0 ({ROOTS_OSM_CONTACT})"
+NOMINATIM_CACHE_TTL_SECONDS = int(os.getenv("NOMINATIM_CACHE_TTL_SECONDS", "86400"))
 MAX_WEB_BYTES = 900_000
 
 user_requests: Dict[str, List[datetime]] = {}
+geocode_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
+nominatim_lock = threading.Lock()
+last_nominatim_request_at = 0.0
 
 MEAT_TERMS = {
     "anchovy", "bacon", "beef", "bone broth", "broth", "chicken", "duck", "fish",
@@ -273,6 +288,16 @@ class FoodFinderRequest(BaseModel):
     doordash_url: Optional[str] = None
     diet_profile: DietaryProfile = Field(default_factory=DietaryProfile)
 
+class RestaurantLocation(BaseModel):
+    latitude: float
+    longitude: float
+    label: Optional[str] = None
+
+
+class RestaurantDiscoverRequest(BaseModel):
+    meal: str = "anything"
+    location: RestaurantLocation
+    radiusMiles: float = 5
 
 class MenuItemResult(BaseModel):
     name: str
@@ -1170,17 +1195,15 @@ class VisibleTextParser(HTMLParser):
         return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+", " ", " ".join(self.parts)))
 
 
-def http_json(url: str, *, method: str = "GET", body: Optional[str] = None) -> Dict:
+def http_json(url: str, *, method: str = "GET", body: Optional[str] = None, headers: Optional[Dict[str, str]] = None) -> Any:
     data = body.encode("utf-8") if body is not None else None
-    request = urllib.request.Request(
-        url,
-        data=data,
-        method=method,
-        headers={
-            "User-Agent": "ButIsItJain/1.0 food finder",
-            "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-        },
-    )
+    request_headers = {
+        "User-Agent": "ButIsItJain/1.0 food finder",
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+    }
+    if headers:
+        request_headers.update(headers)
+    request = urllib.request.Request(url, data=data, method=method, headers=request_headers)
     with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
         return json.loads(response.read(MAX_WEB_BYTES).decode("utf-8", errors="ignore"))
 
@@ -1252,12 +1275,131 @@ def resolve_location(request: FoodFinderRequest) -> Tuple[Optional[float], Optio
             props = features[0].get("properties") or {}
             return float(props["lat"]), float(props["lon"]), None
 
-    query = urllib.parse.urlencode({"format": "json", "limit": "1", "q": location_text})
-    data = http_json(f"https://nominatim.openstreetmap.org/search?{query}")
-    if isinstance(data, list) and data:
-        return float(data[0]["lat"]), float(data[0]["lon"]), None
+    fallback = nominatim_lookup(location_text, 1)
+    if fallback:
+        return float(fallback[0]["latitude"]), float(fallback[0]["longitude"]), None
     return None, None, "Could not resolve that location."
 
+def osm_headers() -> Dict[str, str]:
+    return {"User-Agent": OSM_USER_AGENT, "Accept": "application/json"}
+
+
+def nominatim_lookup(text: str, limit: int = 5) -> List[Dict[str, Any]]:
+    global last_nominatim_request_at
+    query_text = normalize_name(text)
+    if len(query_text) < 3:
+        return []
+    key = f"{query_text.lower()}|{limit}"
+    cached = geocode_cache.get(key)
+    if cached and time.time() - cached[0] < NOMINATIM_CACHE_TTL_SECONDS:
+        return cached[1]
+    with nominatim_lock:
+        wait = 1.05 - (time.time() - last_nominatim_request_at)
+        if wait > 0:
+            time.sleep(wait)
+        params = urllib.parse.urlencode({"format": "jsonv2", "limit": str(limit), "q": query_text, "addressdetails": "1"})
+        data = http_json(f"https://nominatim.openstreetmap.org/search?{params}", headers=osm_headers())
+        last_nominatim_request_at = time.time()
+    out: List[Dict[str, Any]] = []
+    if isinstance(data, list):
+        for index, item in enumerate(data[:limit]):
+            try:
+                lat = float(item["lat"])
+                lon = float(item["lon"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            out.append({
+                "id": str(item.get("osm_id") or f"nominatim-{index}"),
+                "label": item.get("display_name") or query_text,
+                "latitude": lat,
+                "longitude": lon,
+                "provider": "nominatim",
+                "cached": False,
+            })
+    geocode_cache[key] = (time.time(), out)
+    return out
+
+
+def miles_to_meters(value: float) -> int:
+    try:
+        miles = float(value)
+    except (TypeError, ValueError):
+        miles = 5
+    return max(1000, min(10000, int(miles * 1609.344)))
+
+
+def osm_dietary_tags(tags: Dict[str, str]) -> List[str]:
+    values: List[str] = []
+    for key in ("diet:vegetarian", "diet:vegan", "diet:jain", "diet:halal", "diet:kosher", "diet:gluten_free"):
+        value = normalize_key(str(tags.get(key, "")))
+        if value in {"yes", "only", "limited"}:
+            values.append(f"{key.replace('diet:', '').replace('_', ' ')}: {value}")
+    if tags.get("cuisine"):
+        values.append(f"cuisine: {normalize_name(tags.get('cuisine'))}")
+    return values[:12]
+
+
+def normalize_osm_restaurant(item: Dict[str, Any], origin_lat: float, origin_lng: float) -> Optional[Dict[str, Any]]:
+    tags = item.get("tags") or {}
+    name = normalize_name(tags.get("name") or tags.get("brand") or "")
+    place_lat = item.get("lat") or (item.get("center") or {}).get("lat")
+    place_lng = item.get("lon") or (item.get("center") or {}).get("lon")
+    if not name or place_lat is None or place_lng is None:
+        return None
+    try:
+        lat = float(place_lat)
+        lng = float(place_lng)
+    except (TypeError, ValueError):
+        return None
+    website = tags.get("website") or tags.get("contact:website") or tags.get("menu") or ""
+    if website and website.startswith("http://"):
+        website = ""
+    if website and not website.startswith("https://"):
+        website = f"https://{website}" if "." in website and "/" not in website[:8] else ""
+    address = tags.get("addr:full") or ", ".join(filter(None, [tags.get("addr:housenumber"), tags.get("addr:street"), tags.get("addr:city"), tags.get("addr:postcode")]))
+    osm_type = item.get("type") or "node"
+    osm_id = str(item.get("id") or "")
+    return {
+        "id": f"osm:{osm_type}:{osm_id}",
+        "provider": "openstreetmap",
+        "providerEntityType": str(osm_type),
+        "providerEntityId": osm_id,
+        "name": name,
+        "brand": normalize_name(tags.get("brand") or ""),
+        "coordinates": {"latitude": lat, "longitude": lng},
+        "address": address,
+        "distanceMiles": round(distance_meters(origin_lat, origin_lng, lat, lng) / 1609.344, 2),
+        "cuisine": normalize_name(tags.get("cuisine") or tags.get("amenity") or ""),
+        "website": website,
+        "phone": normalize_name(tags.get("phone") or tags.get("contact:phone") or ""),
+        "openingHours": normalize_name(tags.get("opening_hours") or ""),
+        "dietaryTags": osm_dietary_tags(tags),
+        "menuAvailable": bool(website or tags.get("menu")),
+        "openStatus": "unknown",
+        "discoveredAt": datetime.now().isoformat(),
+        "providerMetadata": {"osmTags": {k: tags.get(k) for k in tags if k.startswith("diet:") or k in {"cuisine", "amenity", "menu"}}, "evidenceWarning": "OpenStreetMap dietary tags are weak metadata and not a ROOTS compatibility verdict."},
+    }
+
+
+def overpass_restaurant_discovery(lat: float, lng: float, radius_meters: int) -> List[Dict[str, Any]]:
+    query = f"""
+        [out:json][timeout:18];
+        (
+          node(around:{radius_meters},{lat},{lng})["amenity"~"restaurant|cafe|fast_food|food_court"];
+          way(around:{radius_meters},{lat},{lng})["amenity"~"restaurant|cafe|fast_food|food_court"];
+          relation(around:{radius_meters},{lat},{lng})["amenity"~"restaurant|cafe|fast_food|food_court"];
+        );
+        out center tags 60;
+    """
+    data = http_json("https://overpass-api.de/api/interpreter", method="POST", body=f"data={urllib.parse.quote(query)}", headers=osm_headers())
+    if not isinstance(data, dict):
+        return []
+    restaurants = [normalize_osm_restaurant(item, lat, lng) for item in data.get("elements", [])]
+    unique: Dict[str, Dict[str, Any]] = {}
+    for item in restaurants:
+        if item and item["id"] not in unique:
+            unique[item["id"]] = item
+    return sorted(unique.values(), key=lambda place: place.get("distanceMiles") if place.get("distanceMiles") is not None else 10**9)
 
 def build_place_query(request: FoodFinderRequest) -> str:
     parts = []
@@ -2227,6 +2369,58 @@ async def demo_scan() -> Dict:
         demo=True,
     )
 
+@app.get("/v1/restaurants/geocode")
+async def restaurant_geocode(q: str = Query("")) -> Dict[str, Any]:
+    text = normalize_name(q)
+    if len(text) < 3:
+        return {"results": []}
+    loop = asyncio.get_event_loop()
+    try:
+        results = await loop.run_in_executor(None, nominatim_lookup, text, 5)
+    except Exception as exc:
+        logger.info("Nominatim restaurant geocode failed: %s", exc)
+        raise HTTPException(status_code=502, detail={"code": "GEOCODER_UNAVAILABLE", "message": "Location lookup is temporarily unavailable."})
+    return {"provider": "nominatim", "results": results, "metadata": {"cachedByBackend": True}}
+
+
+@app.post("/v1/restaurants/discover")
+async def restaurant_discover(request: RestaurantDiscoverRequest) -> Dict[str, Any]:
+    lat = request.location.latitude
+    lng = request.location.longitude
+    if lat < -90 or lat > 90 or lng < -180 or lng > 180:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_LOCATION", "message": "Restaurant location coordinates are invalid."})
+    radius = miles_to_meters(request.radiusMiles)
+    loop = asyncio.get_event_loop()
+    provider_notes: List[str] = []
+    try:
+        restaurants = await loop.run_in_executor(None, overpass_restaurant_discovery, lat, lng, radius)
+        expanded_radius = max(radius, 10000)
+        if len(restaurants) < 5 and expanded_radius > radius:
+            provider_notes.append("Expanded the public map search radius because few restaurants were found nearby.")
+            restaurants = await loop.run_in_executor(None, overpass_restaurant_discovery, lat, lng, expanded_radius)
+            radius = expanded_radius
+    except Exception as exc:
+        logger.info("Overpass restaurant discovery failed: %s", exc)
+        raise HTTPException(status_code=502, detail={"code": "DISCOVERY_UNAVAILABLE", "message": "Nearby restaurant lookup is temporarily unavailable."})
+    meal = normalize_name(request.meal or "anything").lower()
+    if meal and meal not in {"anything", "restaurant", "restaurants"}:
+        terms = [term for term in re.split(r"[^a-z0-9]+", meal) if len(term) > 2]
+        def score(item: Dict[str, Any]) -> Tuple[int, float]:
+            haystack = " ".join([item.get("name", ""), item.get("cuisine", ""), " ".join(item.get("dietaryTags", []))]).lower()
+            match = sum(1 for term in terms if term in haystack)
+            return (-match, item.get("distanceMiles") if item.get("distanceMiles") is not None else 10**9)
+        restaurants = sorted(restaurants, key=score)
+    return {
+        "provider": "openstreetmap",
+        "restaurants": restaurants[:40],
+        "metadata": {
+            "provider": "openstreetmap",
+            "providerNotes": provider_notes,
+            "searchedAt": datetime.now().isoformat(),
+            "radiusMeters": radius,
+            "evidenceWarning": "OpenStreetMap dietary tags are weak metadata only; ROOTS dietary ranking still requires menu evidence or user review.",
+        },
+    }
 
 @app.post("/find-food")
 async def find_food(request: Request, finder_request: FoodFinderRequest) -> Dict:
@@ -2441,20 +2635,7 @@ def _geocode_lookup(text: str) -> List[Dict]:
         if out:
             return out
 
-    params = urllib.parse.urlencode({"format": "json", "limit": "5", "q": text})
-    data = http_json(f"https://nominatim.openstreetmap.org/search?{params}")
-    out = []
-    if isinstance(data, list):
-        for item in data[:5]:
-            try:
-                out.append({
-                    "name": item.get("display_name") or text,
-                    "latitude": float(item["lat"]),
-                    "longitude": float(item["lon"]),
-                })
-            except (KeyError, ValueError, TypeError):
-                continue
-    return out
+    return [{"name": item["label"], "latitude": item["latitude"], "longitude": item["longitude"]} for item in nominatim_lookup(text, 5)]
 
 
 @app.get("/geocode")

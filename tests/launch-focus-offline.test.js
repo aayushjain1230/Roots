@@ -140,7 +140,7 @@ test("home period boundaries, camera entry, routes, and offline assets are wired
   assert.match(html, /id="scan-entry-btn"[\s\S]*?<circle cx="12" cy="13\.5" r="3\.2"/);
   assert.match(sw, /dietary-feature-availability\.js/);
   assert.match(sw, /connectivity\.js/);
-  assert.match(sw, /roots-shell-release-v17/);
+  assert.match(sw, /roots-shell-release-v18/);
 });
 
 test("connectivity is centralized and offline barcode recovery is explicit", () => {

@@ -398,11 +398,8 @@ async function legacyHandleFile(file, reviewMetadata) {
     const scan = window.ROOTS_SCAN_PIPELINE.evaluateSource(source, getDietProfile());
     displayResult(scan, { save: scan.state === "EVALUATED" });
   } catch (err) {
-    const labelOffline = ["OCR_NETWORK", "OCR_LOCAL_UNAVAILABLE"].includes(err?.code) || /offline|network|connect/i.test(String(err?.message || ""));
-    showScanError(
-      labelOffline ? "Label reading needs internet on this device. Enter the ingredients manually, or reconnect and try the photo again." : err?.message || "Couldn't read that label. Try a clearer, tighter photo.",
-      { manualEntry: true }
-    );
+        const publicMessage = err?.publicMessage || window.ROOTS_ERRORS?.publicMessage?.(err?.code) || err?.message || "Couldn't read that label. Try a clearer, tighter photo.";
+    showScanError(publicMessage, { manualEntry: true });
   } finally {
     clearScanStatus();
     spinner.classList.add("is-hidden");
@@ -502,59 +499,6 @@ async function handleFile(reviewControl) {
 }
 
 // Shared: given a decoded barcode, look it up in Open Food Facts and show the result.
-// Deprecated Phase 1 pipeline retained only for source-level reference.
-async function legacyLookupAndShow(code) {
-  setScanStatus("Looking up product…");
-  const product = await window.BIJ_FOODFACTS.lookup(code);
-  if (!product.found) {
-    showScanError(`Barcode ${escapeHtml(code)} isn't in the product database yet.`, { labelFallback: true });
-    return;
-  }
-  if (!product.ingredients.length) {
-    showScanError(`Found “${escapeHtml(product.name)}”, but it has no ingredient list on file.`, { labelFallback: true });
-    return;
-  }
-  // English products classify instantly (no Gemini); others get a quick text translation.
-  let entries;
-  if (product.english || !window.BIJ_OCR.hasCloudKey()) {
-    entries = product.ingredients.map(n => ({ name: n }));
-  } else {
-    setScanStatus("Translating ingredients…");
-    const translated = await window.BIJ_OCR.translateIngredientList(product.ingredients);
-    entries = (translated && translated.length) ? translated : product.ingredients.map(n => ({ name: n }));
-  }
-  const data = window.BIJ_OCR.analyze(entries, getDietProfile(), {
-    engine: "barcode",
-    sourceLanguage: product.english ? "English" : (product.lang || "English"),
-    ocrText: product.ingredients.join(", "),
-  });
-  data.product = { name: product.name, brand: product.brand, image: product.image, verifiedAt: product.verifiedAt, fromCache: !!product.fromCache };
-  displayResult(data);
-}
-
-async function legacyLookupAndShowPhase2(code) {
-  setScanStatus("Finding product");
-  const product = await window.BIJ_FOODFACTS.lookup(code);
-  if (!product.found) {
-    displayInsufficient("Product not found.", "Scan Ingredient Label");
-    return;
-  }
-  const originalText = product.rawIngredientText || (product.ingredients || []).join(", ");
-  let translated = [];
-  if (!product.english && originalText && window.BIJ_OCR.hasCloudKey()) {
-    setScanStatus("Translating ingredients");
-    translated = await window.BIJ_OCR.translateIngredientList(
-      window.ROOTS_INGREDIENT_PARSER.splitOutside(originalText)
-    );
-  }
-  setScanStatus("Checking ingredients");
-  const scan = window.ROOTS_SCAN_PIPELINE.evaluateSource(
-    window.ROOTS_SCAN_PIPELINE.sourceFromBarcode(product, translated),
-    getDietProfile()
-  );
-  displayResult(scan, { save: scan.state === "EVALUATED" });
-}
-
 async function lookupAndShow(code, sessionId, job) {
   const processing = window.ROOTS_SCAN_PROCESSING;
   job = job || {};
@@ -1694,6 +1638,7 @@ document.getElementById("camera-mode-barcode")?.addEventListener("click", () => 
   document.body.classList.remove("capture-active");
   startBarcodeScanner();
 });
+document.querySelectorAll("[data-open-travel-mode]").forEach(button => button.addEventListener("click", () => showView("travelView", { recordHistory: true, restoreHomeScroll: false })));
 document.querySelectorAll("[data-home-tool]").forEach(button => button.addEventListener("click", () => {
   const tool = button.dataset.homeTool;
   const routes = { ask: "askRootsView", recipe: "recipeView", meals: "mealsView", travel: "travelView", history: "savedView" };

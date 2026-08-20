@@ -10,7 +10,7 @@
   ]);
   const $ = (id) => document.getElementById(id);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-  let location = null, meal = "", initialized = false, autocompleteTimer = null, autocompleteController = null, renderedRestaurants = new Map();
+  let location = null, meal = "", initialized = false, autocompleteTimer = null, autocompleteController = null, renderedRestaurants = new Map(), mapVisible = true;
 
   function status(message, kind) {
     const el = $("restaurant-status");
@@ -19,8 +19,8 @@
     el.dataset.kind = kind || "";
   }
   function showStep(number) {
-    $("restaurant-location-step").hidden = number !== 1;
-    $("restaurant-meal-step").hidden = number !== 2;
+    $("restaurant-location-step").hidden = false;
+    $("restaurant-meal-step").hidden = number < 2;
     $("restaurant-results-step").hidden = number !== 3;
   }
   function locationLabel() { return location?.label || "Choose location"; }
@@ -55,6 +55,20 @@
     $("restaurant-meal-input").value = meal;
     renderMealCollections();
   }
+
+  function osmUrl(item) {
+    const coords = item?.coordinates;
+    if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) return `https://www.openstreetmap.org/?mlat=${encodeURIComponent(coords.latitude)}&mlon=${encodeURIComponent(coords.longitude)}#map=17/${encodeURIComponent(coords.latitude)}/${encodeURIComponent(coords.longitude)}`;
+    return "";
+  }
+  function renderMapPreview(restaurants) {
+    const map = $("restaurant-map-preview");
+    if (!map) return;
+    const mapped = (restaurants || []).filter((item) => osmUrl(item)).slice(0, 8);
+    map.hidden = !mapVisible || !mapped.length;
+    map.innerHTML = mapped.length ? `<div class="restaurant-map-header"><h4>Map</h4><small>OpenStreetMap links, no bulk tile downloads</small></div><div class="restaurant-map-pins">${mapped.map((item, index) => `<a href="${esc(osmUrl(item))}" target="_blank" rel="noopener noreferrer"><span>${index + 1}</span>${esc(item.name)}</a>`).join("")}</div>` : "";
+  }
+
   function renderRestaurants(restaurants, cached, cacheRecord) {
     renderedRestaurants = new Map(restaurants.map((item) => [item.id, item]));
     const list = $("restaurant-results");
@@ -62,6 +76,9 @@
     $("restaurant-results-meta").textContent = cached
       ? `${cacheRecord?.cacheFreshness === "stale" ? "Cached information may be outdated" : "Showing cached information"}${cacheRecord?.cachedAt ? ` · last updated ${new Date(cacheRecord.cachedAt).toLocaleString()}` : ""}. Live hours and distance are unavailable offline.`
       : `${restaurants.length} restaurant${restaurants.length === 1 ? "" : "s"} found`;
+    renderMapPreview(restaurants);
+    const toggle = $("restaurant-map-toggle");
+    if (toggle) toggle.setAttribute("aria-pressed", String(mapVisible));
     if (root.ROOTS_RESTAURANT_RESULTS) {
       root.ROOTS_RESTAURANT_RESULTS.openProgressive(restaurants, { meal, location, radius: Number($("restaurant-radius").value), cached });
       return;
@@ -73,7 +90,7 @@
     list.innerHTML = restaurants.map((item) => `<article class="restaurant-card">
       ${item.image ? `<img src="${esc(item.image)}" alt="" loading="lazy" width="112" height="96">` : `<span class="restaurant-image-placeholder" aria-hidden="true">⌂</span>`}
       <div><h3>${esc(item.name)}</h3>
-      <p>${esc(item.cuisine || "Cuisine not provided")}${item.distanceMiles != null ? ` · ${esc(item.distanceMiles.toFixed(1))} mi` : ""}</p>
+      <p>${esc(item.cuisine || "Cuisine not provided")}${item.distanceMiles != null ? ` · ${esc(item.distanceMiles.toFixed(1))} mi` : ""}${item.provider === "openstreetmap" ? " · Public map data" : ""}</p>
       <div class="restaurant-facts">
         <span class="open-${esc(item.openStatus)}">${esc(item.openStatus === "open" ? "Open" : item.openStatus === "closed" ? "Closed" : "Hours unavailable")}</span>
         ${item.priceRange ? `<span>${esc(item.priceRange)}</span>` : ""}
@@ -92,6 +109,9 @@
       offline: ["You're offline", "Reconnect to search restaurants. Cached searches are shown automatically when available.", "Retry", "retry"],
       timeout: ["Search took too long", "Check your connection and try again.", "Retry", "retry"],
       provider_unavailable: ["Restaurant search is not configured", "A restaurant data provider must be connected before live results are available.", "Change search", "change-search"],
+      api_not_configured: ["Restaurant search is not configured", "This build needs a ROOTS API URL before live restaurant discovery can run.", "Change search", "change-search"],
+      api_http: ["Restaurant service error", "The restaurant service responded with an error. Try again in a moment.", "Retry", "retry"],
+      location_not_found: ["Location not found", "Try adding a city, state, or ZIP code.", "Choose location", "choose-location"],
       location_required: ["Choose a location", "Select your location before searching.", "Choose location", "choose-location"],
       meal_required: ["Choose a meal", "Enter a food, cuisine, or meal category.", "Change search", "change-search"],
       network: ["Could not load restaurants", "Check your connection and try again.", "Retry", "retry"],
@@ -147,7 +167,7 @@
   }
   function bind() {
     $("restaurant-use-location").addEventListener("click", useCurrentLocation);
-    $("restaurant-location-form").addEventListener("submit", (event) => { event.preventDefault(); updateAutocomplete(); });
+    $("restaurant-location-form").addEventListener("submit", async (event) => { event.preventDefault(); const query = $("restaurant-manual-address").value.trim(); status("Finding that location...", "loading"); try { selectLocation(await Search.resolveAddress(query)); status("Location selected.", "success"); } catch (error) { status(error?.message || "Location lookup failed.", "error"); updateAutocomplete(); } });
     $("restaurant-manual-address").addEventListener("input", () => {
       clearTimeout(autocompleteTimer);
       autocompleteTimer = setTimeout(updateAutocomplete, 300);
@@ -175,6 +195,8 @@
       if (action === "retry") submitSearch();
       if (action === "change-search") showStep(2);
       if (action === "choose-location") showStep(1);
+      const mapToggle = event.target.closest("#restaurant-map-toggle");
+      if (mapToggle) { mapVisible = !mapVisible; mapToggle.setAttribute("aria-pressed", String(mapVisible)); renderMapPreview([...renderedRestaurants.values()]); return; }
       const menuButton = event.target.closest("[data-restaurant-menu]");
       if (menuButton) root.ROOTS_MENU_REVIEW?.open(renderedRestaurants.get(menuButton.dataset.restaurantMenu), menuButton);
     });

@@ -25,8 +25,19 @@
     BARCODE_NOT_FOUND_IN_IMAGE: ["data", "Barcode not detected", "Make sure the full barcode is visible, flat, and in focus.", true],
     BARCODE_INVALID: ["data", "Barcode not detected", "Make sure the full barcode is visible, flat, and in focus.", true],
     BARCODE_LOOKUP_TIMEOUT: ["network", "This is taking longer than expected", "ROOTS could not finish looking up this product.", true],
-    BARCODE_LOOKUP_NETWORK: ["network", "No connection", "ROOTS needs an internet connection to look up this product.", true],
-    BARCODE_OFFLINE_MISS: ["network", "Product unavailable offline", "Product lookup isn’t available offline yet. Scan the ingredient label instead.", true],
+    DEVICE_OFFLINE: ["network", "No connection", "This device is offline. Use cached products, scan the ingredient label locally if available, or enter ingredients manually.", true],
+    API_NOT_CONFIGURED: ["configuration", "ROOTS API not configured", "Label scanning is not configured for this build. Enter ingredients manually or configure the ROOTS API.", false],
+    API_UNREACHABLE: ["network", "ROOTS API unavailable", "The ROOTS API is not reachable. If you are developing locally, start the backend on port 8000.", true],
+    CORS_OR_POLICY_BLOCK: ["configuration", "Request blocked", "The app blocked the ROOTS API request. Check the API origin, CSP, and backend CORS settings.", false],
+    REQUEST_TIMEOUT: ["network", "This is taking longer than expected", "The request took too long. Try again or enter ingredients manually.", true],
+    HTTP_CLIENT_ERROR: ["provider", "Request unavailable", "The provider rejected this request. Review the image or configuration and try again.", true],
+    HTTP_SERVER_ERROR: ["provider", "Provider unavailable", "The provider returned an error. Try again later or enter ingredients manually.", true],
+    PROVIDER_NOT_CONFIGURED: ["configuration", "Provider not configured", "The ROOTS API is running, but label reading is not configured on the backend.", false],
+    PROVIDER_RATE_LIMITED: ["provider", "Too many scan attempts", "Wait about a minute, then try again.", true],
+    PROVIDER_UNAVAILABLE: ["provider", "Provider unavailable", "The online label reader is unavailable. Try again later or enter ingredients manually.", true],
+    OCR_PROVIDER_FAILED: ["provider", "Could not read the label", "The online label reader failed. Try again, use local OCR if available, or enter ingredients manually.", true],
+    BARCODE_LOOKUP_NETWORK: ["network", "Product lookup unavailable", "ROOTS could not reach the product database. This is not necessarily an internet outage.", true],
+    BARCODE_OFFLINE_MISS: ["network", "Product unavailable offline", "This barcode is not cached on this device. Scan the ingredient label instead, or enter ingredients manually.", true],
     PRODUCT_NOT_FOUND: ["data", "Product not found", "ROOTS could not find this barcode in the available product database.", true],
     PRODUCT_MISSING_INGREDIENTS: ["data", "Ingredient list unavailable", "We found the product, but its ingredient list was missing.", false],
     PRODUCT_SOURCE_INVALID: ["data", "Product information unavailable", "The saved product information could not be read safely.", true],
@@ -40,8 +51,8 @@
     IMAGE_BLURRY: ["quality", "Photo may be blurry", "Keep the label flat and the camera steady.", false],
     IMAGE_UNSUPPORTED: ["quality", "Photo format unavailable", "Choose a JPEG, PNG, or WebP image instead.", false],
     OCR_TIMEOUT: ["network", "This is taking longer than expected", "ROOTS could not finish reading this image.", true],
-    OCR_NETWORK: ["network", "No connection", "Label reading needs internet on this device. Enter the ingredients manually, or reconnect and try the photo again.", true],
-    OCR_LOCAL_UNAVAILABLE: ["capability", "Offline text reading unavailable", "Enter the ingredients manually, or reconnect and try the photo again.", false],
+    OCR_NETWORK: ["network", "ROOTS API unavailable", "The ROOTS API could not be reached. If you are developing locally, start the backend on port 8000 or enter ingredients manually.", true],
+    OCR_LOCAL_UNAVAILABLE: ["capability", "Offline text reading unavailable", "Enter the ingredients manually. This is a device capability limitation, not an internet problem.", false],
     OCR_PROVIDER_ERROR: ["provider", "Could not read the label", "Try again, or use a clearer photo with bright, even lighting.", true],
     OCR_UNAVAILABLE: ["provider", "Label reading unavailable", "Try again when label scanning is available.", true],
     OCR_RATE_LIMITED: ["provider", "Too many scan attempts", "Wait about a minute, then try the label again.", true],
@@ -116,7 +127,7 @@
     if (!code) {
       if (name === "AbortError") code = "SESSION_CANCELED";
       else if (name === "TimeoutError" || message.includes("timeout")) code = "UNKNOWN_ERROR";
-      else if (message.includes("offline") || message.includes("network") || message.includes("connect")) code = "BARCODE_LOOKUP_NETWORK";
+      else if (root.ROOTS_ERRORS?.isDeviceOffline?.()) code = "DEVICE_OFFLINE";
       else code = "UNKNOWN_ERROR";
     }
     const spec = ERRORS[code] || ERRORS.UNKNOWN_ERROR;

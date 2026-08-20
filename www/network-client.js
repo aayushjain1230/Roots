@@ -14,9 +14,20 @@
     const timer = setTimeout(() => controller.abort(Object.assign(new Error("Request timed out."), { code: "NETWORK_TIMEOUT" })), timeoutMs);
     return { signal: controller.signal, cleanup: () => { clearTimeout(timer); signal?.removeEventListener?.("abort", forward); } };
   }
+  function normalizeThrown(error, url, options) {
+    if (error?.name === "AbortError" && error?.code !== "NETWORK_TIMEOUT") throw error;
+    const code = root.ROOTS_ERRORS?.classifyFetchError?.(error) || (error?.code === "NETWORK_TIMEOUT" ? "REQUEST_TIMEOUT" : "API_UNREACHABLE");
+    const normalized = root.ROOTS_ERRORS?.create?.(code, null, {
+      stage: options?.classification || "request",
+      urlOrigin: (() => { try { return new URL(url).origin; } catch (_) { return ""; } })(),
+      originalName: String(error?.name || "Error").slice(0, 80),
+    }) || Object.assign(new Error(error?.message || "Network request failed."), { code });
+    normalized.originalError = error;
+    throw normalized;
+  }
   async function run(url, options) {
     const retries = Math.max(0, Math.min(2, Number(options.retries) || 0));
-    const { timeoutMs, dedupeKey, classification, retries: ignoredRetries, ...requestOptions } = options;
+    const { timeoutMs, dedupeKey, classification, retries: ignoredRetries, skipDedupe, ...requestOptions } = options;
     let attempt = 0;
     while (true) {
       const linked = combineSignal(options.signal, Math.max(1000, Number(timeoutMs) || DEFAULT_TIMEOUT));
@@ -32,12 +43,13 @@
         return { ok: response.ok, status: response.status, data, headers: response.headers };
       } catch (error) {
         if (error?.name !== "AbortError") root.ROOTS_CONNECTIVITY?.noteFailure?.();
-        throw error;
+        normalizeThrown(error, url, options);
       } finally { linked.cleanup(); }
     }
   }
   function request(url, options) {
     options = options || {};
+    if (options.skipDedupe === true) return run(url, options);
     const key = String(options.dedupeKey || `${options.method || "GET"}:${url}`).slice(0, 500);
     if (inflight.has(key)) return inflight.get(key);
     const task = root.ROOTS_PERFORMANCE?.startTask?.(`network:${options.classification || "request"}`, { cache: "miss" });
