@@ -28,6 +28,7 @@
     "test:rc": "node --test tests/release-candidate.test.js",
     "test:phase6b": "node --test tests/phase6b.test.js",
     "test:js": "node --test tests/*.test.js",
+    "smoke:runtime": "node scripts/runtime-smoke.mjs",
     "dev": "python dev.py",
     "serve": "python -m http.server 5500 --directory www",
     "sync": "cap sync",

@@ -168,6 +168,29 @@
     catch (error) { status(error?.message || "Location is unavailable. Enter an address instead.", "error"); $("restaurant-manual-address").focus(); }
     finally { button.disabled = false; }
   }
+  async function renderApiHealth() {
+    const config = root.ROOTS_RUNTIME_CONFIG;
+    if (!config) return;
+    if (config.API_CONFIG_CODE !== "OK") {
+      status(`ROOTS API not configured (${config.API_CONFIG_CODE}). Add a deployed backend URL to roots-api-base for live Restaurants and scanning.`, "error");
+      return;
+    }
+    if (config.IS_LOCAL_WEB !== true) return;
+    status(`Checking ROOTS API at ${config.API_BASE_URL}...`, "loading");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    try {
+      const response = await fetch(`${config.API_BASE_URL}/health`, { signal: controller.signal, cache: "no-store" });
+      const data = response.ok ? await response.json() : null;
+      if (!response.ok) status(`ROOTS API health check failed (${response.status}).`, "error");
+      else if (data?.providerConfigured === false) status("ROOTS API reachable, but Gemini is not configured on the backend.", "error");
+      else status("ROOTS API ready for Restaurants and label scanning.", "success");
+    } catch (_) {
+      status(`ROOTS API unavailable at ${config.API_BASE_URL}. Start FastAPI or configure roots-api-base.`, "error");
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   function bind() {
     $("restaurant-use-location").addEventListener("click", useCurrentLocation);
     $("restaurant-location-form").addEventListener("submit", async (event) => {
@@ -225,6 +248,7 @@
     renderLocationCollections();
     renderMealCollections();
     showStep(1);
+    renderApiHealth();
   }
 
   root.ROOTS_RESTAURANT_UI = { MEALS, init, selectLocation, setMeal, submitSearch, renderRestaurants, renderError };

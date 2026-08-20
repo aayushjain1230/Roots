@@ -81,5 +81,8 @@ test("backend source keeps OSM provider swappable and marks tags as weak evidenc
   assert.match(api, /@app\.get\("\/v1\/restaurants\/geocode"\)/);
   assert.match(api, /@app\.post\("\/v1\/restaurants\/discover"\)/);
   assert.match(api, /OpenStreetMap dietary tags are weak metadata/);
+  assert.match(api, /restaurant_discovery_cache/);
+  assert.match(api, /OVERPASS_TIMEOUT_SECONDS/);
+  assert.match(api, /Reused recently discovered public map results/);
   assert.doesNotMatch(api.slice(api.indexOf("async def restaurant_discover"), api.indexOf("@app.post(\"/find-food\")")), /GOOGLE_PLACES_API_KEY|GEOAPIFY_API_KEY/);
 });

@@ -23,6 +23,7 @@ test("Restaurants page uses local hero, ROOTS green tokens, and preserved functi
   assert.match(styles, /--brand-deep: #0A3D2A/);
   assert.match(styles, /restaurant-hero \{[\s\S]*height:\s*clamp\(220px, 58vw, 310px\)/);
   assert.doesNotMatch(styles, /\[data-theme="dark"\] \.restaurant-brand-name/);
+  assert.match(styles, /\[data-theme="dark"\][\s\S]*--brand-soft: #293C32/);
   assert.match(html, /id="restaurant-use-location"/);
   assert.match(html, /class="location-button-icon"/);
   assert.match(html, /placeholder="City, address, or place"/);

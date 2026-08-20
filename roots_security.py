@@ -12,6 +12,7 @@ import binascii
 import io
 import ipaddress
 import json
+import logging
 import os
 import re
 import secrets
@@ -33,6 +34,7 @@ except ImportError:  # pragma: no cover - deployment dependency check reports th
 
 
 router = APIRouter(prefix="/v1")
+logger = logging.getLogger("roots_security")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
@@ -252,6 +254,8 @@ def _limit(request: Request, route: str, count: int, install_id: str | None) -> 
 def _safe_provider_error(status: int | None = None) -> HTTPException:
     if status == 429:
         return HTTPException(503, detail={"code": "provider_busy", "message": "The service is busy. Please try again shortly."})
+    if status in {400, 401, 403, 404}:
+        return HTTPException(503, detail={"code": "provider_config_error", "message": "The online provider is not configured correctly for this backend."})
     return HTTPException(502, detail={"code": "provider_unavailable", "message": "The service is temporarily unavailable. Please try again."})
 
 
@@ -276,6 +280,7 @@ def _provider_call(parts: list[dict[str, Any]], *, json_output: bool, temperatur
     except HTTPException:
         raise
     except urllib.error.HTTPError as exc:
+        logger.info("Gemini provider rejected request with HTTP %s", exc.code)
         raise _safe_provider_error(exc.code) from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
         raise _safe_provider_error() from None

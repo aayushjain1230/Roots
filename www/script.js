@@ -149,7 +149,7 @@ async function showView(viewId, options = {}) {
     }
   } catch (_) {
     const status = viewId === "restaurantsView" ? document.getElementById("restaurant-status") : null;
-    if (status) status.textContent = "This section could not load. Check your connection and try again.";
+    if (status) status.textContent = "Restaurants could not load. Error code: FEATURE_LOAD_FAILED.";
   } finally {
     window.ROOTS_PERFORMANCE?.endTask?.(navigationTask, { status: "complete" });
     if (TOOL_VIEW_IDS.has(viewId)) {

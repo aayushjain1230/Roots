@@ -49,6 +49,24 @@ test("network client deduplicates identical in-flight requests", async () => {
   assert.equal(ctx.ROOTS_NETWORK.inflightCount(), 0);
 });
 
+test("different POST bodies to the same URL are not auto-deduped", async () => {
+  let calls = 0;
+  const bodies = [];
+  const fetch = async (_url, options) => {
+    calls += 1;
+    bodies.push(options.body);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return { ok: true, status: 200, headers: {}, text: async () => JSON.stringify({ call: calls }) };
+  };
+  const ctx = load(context({ fetch }), ["network-client.js"]);
+  const [a, b] = await Promise.all([
+    ctx.ROOTS_NETWORK.request("https://example.test/v1/ocr/label", { method: "POST", body: "photo-a" }),
+    ctx.ROOTS_NETWORK.request("https://example.test/v1/ocr/label", { method: "POST", body: "photo-b" }),
+  ]);
+  assert.equal(calls, 2);
+  assert.deepEqual(bodies.sort(), ["photo-a", "photo-b"]);
+  assert.notEqual(a, b);
+});
 test("failed network request leaves the in-flight registry and can retry later", async () => {
   let calls = 0;
   const ctx = load(context({ fetch: async () => { calls += 1; throw new Error("network"); } }), ["network-client.js"]);

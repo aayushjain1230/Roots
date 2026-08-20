@@ -47,10 +47,16 @@
       } finally { linked.cleanup(); }
     }
   }
+  function canAutoDedupe(options) {
+    const method = String(options?.method || "GET").toUpperCase();
+    return method === "GET" || method === "HEAD";
+  }
   function request(url, options) {
     options = options || {};
     if (options.skipDedupe === true) return run(url, options);
-    const key = String(options.dedupeKey || `${options.method || "GET"}:${url}`).slice(0, 500);
+    const explicitKey = options.dedupeKey != null && String(options.dedupeKey).length > 0;
+    if (!explicitKey && !canAutoDedupe(options)) return run(url, options);
+    const key = String(explicitKey ? options.dedupeKey : `${options.method || "GET"}:${url}`).slice(0, 500);
     if (inflight.has(key)) return inflight.get(key);
     const task = root.ROOTS_PERFORMANCE?.startTask?.(`network:${options.classification || "request"}`, { cache: "miss" });
     const promise = run(url, options).finally(() => {
@@ -60,5 +66,5 @@
     inflight.set(key, promise);
     return promise;
   }
-  root.ROOTS_NETWORK = { request, inflightCount: () => inflight.size, clear: () => inflight.clear(), transient, DEFAULT_TIMEOUT };
+  root.ROOTS_NETWORK = { request, inflightCount: () => inflight.size, clear: () => inflight.clear(), transient, canAutoDedupe, DEFAULT_TIMEOUT };
 })(typeof window !== "undefined" ? window : globalThis);

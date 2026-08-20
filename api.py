@@ -97,6 +97,7 @@ GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY", "")
 FINDER_RADIUS_METERS = int(os.getenv("FINDER_RADIUS_METERS", "6000"))
 EXPANDED_FINDER_RADIUS_METERS = (15000, 40000, 80000)
 HTTP_TIMEOUT_SECONDS = int(os.getenv("HTTP_TIMEOUT_SECONDS", "7"))
+OVERPASS_TIMEOUT_SECONDS = int(os.getenv("OVERPASS_TIMEOUT_SECONDS", "25"))
 ROOTS_OSM_CONTACT = os.getenv("ROOTS_OSM_CONTACT", "roots.food.app@gmail.com")
 OSM_USER_AGENT = f"ROOTS/1.0 ({ROOTS_OSM_CONTACT})"
 NOMINATIM_CACHE_TTL_SECONDS = int(os.getenv("NOMINATIM_CACHE_TTL_SECONDS", "86400"))
@@ -104,6 +105,8 @@ MAX_WEB_BYTES = 900_000
 
 user_requests: Dict[str, List[datetime]] = {}
 geocode_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
+restaurant_discovery_cache: Dict[str, Tuple[float, List[Dict[str, Any]], int]] = {}
+RESTAURANT_DISCOVERY_CACHE_TTL_SECONDS = int(os.getenv("RESTAURANT_DISCOVERY_CACHE_TTL_SECONDS", "300"))
 nominatim_lock = threading.Lock()
 last_nominatim_request_at = 0.0
 
@@ -1195,7 +1198,7 @@ class VisibleTextParser(HTMLParser):
         return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+", " ", " ".join(self.parts)))
 
 
-def http_json(url: str, *, method: str = "GET", body: Optional[str] = None, headers: Optional[Dict[str, str]] = None) -> Any:
+def http_json(url: str, *, method: str = "GET", body: Optional[str] = None, headers: Optional[Dict[str, str]] = None, timeout: Optional[int] = None) -> Any:
     data = body.encode("utf-8") if body is not None else None
     request_headers = {
         "User-Agent": "ButIsItJain/1.0 food finder",
@@ -1204,11 +1207,11 @@ def http_json(url: str, *, method: str = "GET", body: Optional[str] = None, head
     if headers:
         request_headers.update(headers)
     request = urllib.request.Request(url, data=data, method=method, headers=request_headers)
-    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+    with urllib.request.urlopen(request, timeout=timeout or HTTP_TIMEOUT_SECONDS) as response:
         return json.loads(response.read(MAX_WEB_BYTES).decode("utf-8", errors="ignore"))
 
 
-def http_page(url: str) -> Tuple[str, List[Tuple[str, str]], str]:
+def http_page(url: str, *, timeout: Optional[int] = None) -> Tuple[str, List[Tuple[str, str]], str]:
     try:
         validate_public_url(url)
     except ValueError:
@@ -1222,7 +1225,7 @@ def http_page(url: str) -> Tuple[str, List[Tuple[str, str]], str]:
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(request, timeout=timeout or HTTP_TIMEOUT_SECONDS) as response:
             content_type = response.headers.get("Content-Type", "")
             if "text/html" not in content_type and "text/plain" not in content_type:
                 return "", [], ""
@@ -1380,6 +1383,22 @@ def normalize_osm_restaurant(item: Dict[str, Any], origin_lat: float, origin_lng
         "providerMetadata": {"osmTags": {k: tags.get(k) for k in tags if k.startswith("diet:") or k in {"cuisine", "amenity", "menu"}}, "evidenceWarning": "OpenStreetMap dietary tags are weak metadata and not a ROOTS compatibility verdict."},
     }
 
+def restaurant_discovery_cache_key(lat: float, lng: float, radius_meters: int) -> str:
+    return f"{round(lat, 4)}|{round(lng, 4)}|{int(radius_meters)}"
+
+
+def get_cached_restaurant_discovery(lat: float, lng: float, radius_meters: int) -> Optional[Tuple[List[Dict[str, Any]], int]]:
+    cached = restaurant_discovery_cache.get(restaurant_discovery_cache_key(lat, lng, radius_meters))
+    if not cached:
+        return None
+    cached_at, restaurants, cached_radius = cached
+    if time.time() - cached_at > RESTAURANT_DISCOVERY_CACHE_TTL_SECONDS:
+        return None
+    return [dict(item) for item in restaurants], cached_radius
+
+
+def set_cached_restaurant_discovery(lat: float, lng: float, radius_meters: int, restaurants: List[Dict[str, Any]], actual_radius: int) -> None:
+    restaurant_discovery_cache[restaurant_discovery_cache_key(lat, lng, radius_meters)] = (time.time(), [dict(item) for item in restaurants], actual_radius)
 
 def overpass_restaurant_discovery(lat: float, lng: float, radius_meters: int) -> List[Dict[str, Any]]:
     query = f"""
@@ -1391,7 +1410,7 @@ def overpass_restaurant_discovery(lat: float, lng: float, radius_meters: int) ->
         );
         out center tags 60;
     """
-    data = http_json("https://overpass-api.de/api/interpreter", method="POST", body=f"data={urllib.parse.quote(query)}", headers=osm_headers())
+    data = http_json("https://overpass-api.de/api/interpreter", method="POST", body=f"data={urllib.parse.quote(query)}", headers=osm_headers(), timeout=OVERPASS_TIMEOUT_SECONDS)
     if not isinstance(data, dict):
         return []
     restaurants = [normalize_osm_restaurant(item, lat, lng) for item in data.get("elements", [])]
@@ -2392,16 +2411,23 @@ async def restaurant_discover(request: RestaurantDiscoverRequest) -> Dict[str, A
     radius = miles_to_meters(request.radiusMiles)
     loop = asyncio.get_event_loop()
     provider_notes: List[str] = []
-    try:
-        restaurants = await loop.run_in_executor(None, overpass_restaurant_discovery, lat, lng, radius)
-        expanded_radius = max(radius, 10000)
-        if len(restaurants) < 5 and expanded_radius > radius:
-            provider_notes.append("Expanded the public map search radius because few restaurants were found nearby.")
-            restaurants = await loop.run_in_executor(None, overpass_restaurant_discovery, lat, lng, expanded_radius)
-            radius = expanded_radius
-    except Exception as exc:
-        logger.info("Overpass restaurant discovery failed: %s", exc)
-        raise HTTPException(status_code=502, detail={"code": "DISCOVERY_UNAVAILABLE", "message": "Nearby restaurant lookup is temporarily unavailable."})
+    requested_radius = radius
+    cached = get_cached_restaurant_discovery(lat, lng, requested_radius)
+    if cached:
+        restaurants, radius = cached
+        provider_notes.append("Reused recently discovered public map results for this location and radius.")
+    else:
+        try:
+            restaurants = await loop.run_in_executor(None, overpass_restaurant_discovery, lat, lng, radius)
+            expanded_radius = max(radius, 10000)
+            if len(restaurants) < 5 and expanded_radius > radius:
+                provider_notes.append("Expanded the public map search radius because few restaurants were found nearby.")
+                restaurants = await loop.run_in_executor(None, overpass_restaurant_discovery, lat, lng, expanded_radius)
+                radius = expanded_radius
+            set_cached_restaurant_discovery(lat, lng, requested_radius, restaurants, radius)
+        except Exception as exc:
+            logger.info("Overpass restaurant discovery failed: %s", exc)
+            raise HTTPException(status_code=502, detail={"code": "DISCOVERY_UNAVAILABLE", "message": "Nearby restaurant lookup is temporarily unavailable."})
     meal = normalize_name(request.meal or "anything").lower()
     if meal and meal not in {"anything", "restaurant", "restaurants"}:
         terms = [term for term in re.split(r"[^a-z0-9]+", meal) if len(term) > 2]

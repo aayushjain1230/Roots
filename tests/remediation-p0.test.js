@@ -80,3 +80,24 @@ test("scan UI copy reserves No connection for real device-offline errors", () =>
   assert.doesNotMatch(processing, /offline\|network\|connect/);
   assert.doesNotMatch(runtimeFixes, /Label reading needs internet/);
 });
+test("local OCR adapter reports unavailable without a native Capacitor plugin", async () => {
+  const ctx = load(context(), ["error-taxonomy.js", "local-ocr-provider.js"]);
+  assert.equal(ctx.ROOTS_LOCAL_OCR_PROVIDER.available(), false);
+  await assert.rejects(() => ctx.ROOTS_LOCAL_OCR_PROVIDER.extractText({}), (error) => error.code === "OCR_LOCAL_UNAVAILABLE");
+});
+
+test("restaurant UI exposes API health/config status instead of false connection copy", () => {
+  const ui = source("restaurant-ui.js");
+  const script = source("script.js");
+  assert.match(ui, /renderApiHealth/);
+  assert.match(ui, /ROOTS API not configured/);
+  assert.match(ui, /providerConfigured/);
+  assert.doesNotMatch(script, /This section could not load\. Check your connection/);
+  assert.match(script, /FEATURE_LOAD_FAILED/);
+});
+test("backend provider errors distinguish config from temporary upstream failures", () => {
+  const security = fs.readFileSync(path.join(ROOT, "roots_security.py"), "utf8");
+  assert.match(security, /provider_config_error/);
+  assert.match(security, /status in \{400, 401, 403, 404\}/);
+  assert.match(security, /Gemini provider rejected request with HTTP/);
+});
