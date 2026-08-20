@@ -5,7 +5,7 @@
     PROVIDER_UNAVAILABLE: "provider_unavailable",
     OFFLINE: "offline",
     TIMEOUT: "timeout",
-    NETWORK: "network",
+    REQUEST_FAILED: "request_failed",
     INVALID_RESPONSE: "invalid_response",
     API_NOT_CONFIGURED: "api_not_configured",
     API_HTTP: "api_http",
@@ -100,7 +100,11 @@
     if (error instanceof RestaurantProviderError) return error;
     if (error?.name === "AbortError") return new RestaurantProviderError(ERROR_CODES.CANCELLED);
     if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) return new RestaurantProviderError(ERROR_CODES.OFFLINE);
-    return new RestaurantProviderError(ERROR_CODES.NETWORK);
+    if (error?.code === "REQUEST_TIMEOUT" || error?.code === "NETWORK_TIMEOUT") return new RestaurantProviderError(ERROR_CODES.TIMEOUT, error.message);
+    if (error?.code === "API_NOT_CONFIGURED") return new RestaurantProviderError(ERROR_CODES.API_NOT_CONFIGURED, error.message);
+    if (error?.code === "API_HTTP") return new RestaurantProviderError(ERROR_CODES.API_HTTP, error.message);
+    if (error?.code === "INVALID_RESPONSE" || error?.code === "MALFORMED_JSON") return new RestaurantProviderError(ERROR_CODES.INVALID_RESPONSE, error.message);
+    return new RestaurantProviderError(ERROR_CODES.REQUEST_FAILED, error?.message || "Restaurant request failed.");
   }
 
   function endpoint(path) {

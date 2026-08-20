@@ -1325,7 +1325,7 @@ def miles_to_meters(value: float) -> int:
         miles = float(value)
     except (TypeError, ValueError):
         miles = 5
-    return max(1000, min(10000, int(miles * 1609.344)))
+    return max(1000, min(16094, int(miles * 1609.344)))
 
 
 def osm_dietary_tags(tags: Dict[str, str]) -> List[str]:

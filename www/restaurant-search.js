@@ -3,9 +3,10 @@
   const P = root.ROOTS_RESTAURANT_PROVIDER, S = root.ROOTS_RESTAURANT_STORAGE;
   if (!P || !S) throw new Error("Restaurant provider and storage must load before restaurant-search.js");
 
-  const GEO_TIMEOUT = 10000, SEARCH_TIMEOUT = 12000;
+  const GEO_TIMEOUT = 10000, SEARCH_TIMEOUT = 12000, DEFAULT_MEAL = "anything";
   let activeController = null;
   const cleanMeal = (value) => String(value || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  const searchMeal = (value) => cleanMeal(value) || DEFAULT_MEAL;
   function activeProvider() {
     const provider = P.getProvider();
     if (provider?.constructor?.name === "UnconfiguredRestaurantProvider" && typeof P.installDefaultProvider === "function") return P.installDefaultProvider();
@@ -42,24 +43,32 @@
     return (Array.isArray(result) ? result : []).map((item) => ({ ...P.validateLocation(item), id: String(item.id || ""), label: String(item.label || "").slice(0, 180) })).filter((item) => item.latitude != null && item.label);
   }
 
+  function looksAmbiguous(text, items) {
+    const compact = String(text || "").trim();
+    return items.length > 1 && /^[A-Za-z .'-]{3,}$/.test(compact) && !/[0-9,]/.test(compact) && compact.split(/\s+/).length <= 2;
+  }
   async function resolveAddress(query, options) {
     const text = String(query || "").trim().slice(0, 180);
     if (text.length < 3) throw { code: "location_required", message: "Enter an address, city, state, or ZIP code." };
     const items = await autocomplete(text, options);
-    const first = items[0] ? P.validateLocation(items[0]) : null;
+    if (!items.length) throw { code: "location_not_found", message: "ROOTS could not find that location. Try adding a city and state." };
+    if (looksAmbiguous(text, items)) {
+      const error = { code: "ambiguous_location", message: "Choose the location you meant.", results: items.slice(0, 5) };
+      throw error;
+    }
+    const first = P.validateLocation(items[0]);
     if (!first) throw { code: "location_not_found", message: "ROOTS could not find that location. Try adding a city and state." };
     S.addRecentLocation(first);
     return first;
   }
 
   async function searchRestaurants(input, options) {
-    const meal = cleanMeal(input?.meal), location = P.validateLocation(input?.location), radius = S.setRadius(input?.radius);
-    if (!meal) throw { code: "meal_required", message: "Choose or enter what you would like to eat." };
+    const meal = searchMeal(input?.meal), location = P.validateLocation(input?.location), radius = S.setRadius(input?.radius);
     if (!location) throw { code: "location_required", message: "Choose a location before searching." };
     if (root.ROOTS_CONNECTIVITY?.get?.().offline === true) {
       const cached = S.getCachedResults(meal, location, radius, { allowStale: true });
       if (cached) return { ...cached, cached: true };
-      throw { code: "offline", message: "Restaurant search needs internet. Reconnect and try again." };
+      throw { code: "offline", message: "Restaurant search needs internet for new locations. Cached searches appear automatically when available." };
     }
     activeController?.abort();
     activeController = new AbortController();
@@ -81,5 +90,5 @@
   }
   function cancel() { activeController?.abort(); activeController = null; }
 
-  root.ROOTS_RESTAURANT_SEARCH = { cleanMeal, geolocationError, getCurrentLocation, autocomplete, resolveAddress, searchRestaurants, cancel };
+  root.ROOTS_RESTAURANT_SEARCH = { DEFAULT_MEAL, cleanMeal, searchMeal, geolocationError, getCurrentLocation, autocomplete, resolveAddress, searchRestaurants, cancel };
 })(typeof window !== "undefined" ? window : globalThis);

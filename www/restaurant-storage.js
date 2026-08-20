@@ -28,12 +28,12 @@
   };
 
   function getRadius() {
-    const value = Number(read(KEYS.radius, 10));
-    return [5, 10, 20, 30, 50].includes(value) ? value : 10;
+    const value = Number(read(KEYS.radius, 5));
+    return [2, 5, 10].includes(value) ? value : 5;
   }
   function setRadius(value) {
     const radius = Number(value);
-    if (![5, 10, 20, 30, 50].includes(radius)) return getRadius();
+    if (![2, 5, 10].includes(radius)) return getRadius();
     write(KEYS.radius, radius);
     return radius;
   }

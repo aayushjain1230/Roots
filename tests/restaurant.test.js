@@ -60,11 +60,11 @@ test("location errors distinguish denied, unavailable, and timeout", () => {
   assert.equal(Search.geolocationError({ code: 3 }).code, "location_timeout");
 });
 
-test("radius preference supports only 5, 10, 20, 30, and 50 miles", () => {
+test("radius preference supports nearby, 5 miles, and 10 miles only", () => {
   reset();
-  assert.equal(Storage.getRadius(), 10);
-  for (const radius of [5, 10, 20, 30, 50]) assert.equal(Storage.setRadius(radius), radius);
-  assert.equal(Storage.setRadius(99), 50);
+  assert.equal(Storage.getRadius(), 5);
+  for (const radius of [2, 5, 10]) assert.equal(Storage.setRadius(radius), radius);
+  assert.equal(Storage.setRadius(99), 10);
 });
 
 test("recent searches are deduplicated, bounded, and clearable", () => {
@@ -97,11 +97,34 @@ test("typed meal and chip searches pass location and radius through provider", a
     async reverseGeocode() { return location; },
     async autocomplete() { return [location]; },
   });
-  const result = await Search.searchRestaurants({ meal: "  Pizza  ", location, radius: 20 });
+  const result = await Search.searchRestaurants({ meal: "  Pizza  ", location, radius: 10 });
   assert.equal(request.meal, "Pizza");
-  assert.equal(request.radius, 20);
+  assert.equal(request.radius, 10);
   assert.equal(result.restaurants.length, 1);
   assert.equal(Storage.getRecentSearches()[0].meal, "Pizza");
+});
+
+test("meal is optional and defaults to nearby restaurants", async () => {
+  reset();
+  let request;
+  Provider.setProvider({
+    async searchRestaurants(input) { request = input; return { provider: "test", restaurants: [{ id: "r1", name: "Cafe" }] }; },
+    async reverseGeocode() { return location; },
+    async autocomplete() { return [location]; },
+  });
+  const result = await Search.searchRestaurants({ meal: "", location, radius: 5 });
+  assert.equal(request.meal, "anything");
+  assert.equal(result.restaurants.length, 1);
+});
+
+test("ambiguous short locations require an explicit choice", async () => {
+  reset();
+  Provider.setProvider({
+    async searchRestaurants() { return []; },
+    async reverseGeocode() { return location; },
+    async autocomplete() { return [{ ...location, id: "springfield-il", label: "Springfield, Illinois" }, { ...location, longitude: -72.59, id: "springfield-ma", label: "Springfield, Massachusetts" }]; },
+  });
+  await assert.rejects(Search.resolveAddress("Springfield"), (error) => error.code === "ambiguous_location" && error.results.length === 2);
 });
 
 test("autocomplete provider remains replaceable", async () => {
@@ -132,6 +155,8 @@ test("timeout and cancellation normalize to stable provider errors", async () =>
   controller.abort();
   await assert.rejects(waiting, (error) => error.code === "cancelled");
   assert.equal(Provider.normalizeError({ name: "AbortError" }).code, "cancelled");
+  assert.equal(Provider.normalizeError({ code: "REQUEST_TIMEOUT" }).code, "timeout");
+  assert.equal(Provider.normalizeError(new Error("CORS blocked")).code, "request_failed");
 });
 
 test("Restaurant UI contains location-first accessible controls and no menu analysis", () => {
