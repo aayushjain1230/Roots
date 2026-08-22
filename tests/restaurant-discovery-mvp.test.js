@@ -83,6 +83,12 @@ test("backend source keeps OSM provider swappable and marks tags as weak evidenc
   assert.match(api, /OpenStreetMap dietary tags are weak metadata/);
   assert.match(api, /restaurant_discovery_cache/);
   assert.match(api, /OVERPASS_TIMEOUT_SECONDS/);
+  assert.match(api, /KNOWN_OVERPASS_ENDPOINTS/);
+  assert.ok(api.includes("https://overpass-api.de/api/interpreter"));
+  assert.ok(api.includes("https://overpass.kumi.systems/api/interpreter"));
+  assert.ok(api.includes("https://overpass.osm.ch/api/interpreter"));
+  assert.match(api, /restaurant_discovery_inflight/);
+  assert.match(api, /providerStatus/);
   assert.match(api, /Reused recently discovered public map results/);
   assert.doesNotMatch(api.slice(api.indexOf("async def restaurant_discover"), api.indexOf("@app.post(\"/find-food\")")), /GOOGLE_PLACES_API_KEY|GEOAPIFY_API_KEY/);
 });

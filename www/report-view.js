@@ -33,7 +33,13 @@
     .replace(/\bnot compatible with Jain\b/gi, "not compatible with your Jain settings");
   const slug = (value) => clean(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "ingredient";
   const unique = (values) => [...new Set(values.filter(Boolean))];
-  const itemName = (item) => clean(item?.displayName || item?.rawName) || "Unknown Ingredient";
+  function titleCaseIngredient(value) {
+    const text = clean(value);
+    if (!text) return "";
+    if (text !== text.toUpperCase() || !/[A-Z]/.test(text)) return text;
+    return text.toLowerCase().replace(/\b[a-z]/g, (char) => char.toUpperCase());
+  }
+  const itemName = (item) => titleCaseIngredient(item?.displayName || knowledge(item)?.name || item?.normalizedName || item?.rawName) || "Unknown ingredient";
   const reasonText = (item) => jainDisplay(item?.reasons?.[0]?.label) || (
     item?.status === "SAFE" ? "" : item?.matchedIngredientId ? "ROOTS identified this ingredient for your selected profile." :
       "ROOTS could not confidently identify this ingredient."
@@ -271,7 +277,7 @@
         <button type="button" data-action="copy">Copy Ingredients</button>
         <button type="button" data-action="review">Review Ingredients</button>
         <button type="button" data-action="issue">Report an Issue</button>
-        <button type="button" data-action="scan-again">Scan Again</button>
+        <button type="button" data-action="scan-again">Scan another product</button>
         ${canRecheck ? '<button type="button" data-action="recheck">Check with Current Profile</button>' : ""}
       </div>
       ${canRecheck ? '<p id="report-recheck-status" class="report-recheck-status" role="status"></p>' : ""}
@@ -280,7 +286,7 @@
   function alternativesHtml(scan) {
     if (scan?.evaluation?.verdict !== "AVOID" || !root.ROOTS_RECOMMENDATIONS || !root.ROOTS_REPORT_ACTIONS) return "";
     const alternatives = root.ROOTS_RECOMMENDATIONS.alternatives(scan, root.ROOTS_REPORT_ACTIONS.getSavedProducts(), 5);
-    if (!alternatives.length) return `<section class="report-alternatives"><h2>Known safe alternatives</h2><p>No verified local alternatives yet. ROOTS only suggests products you have actually scanned or saved as Safe.</p></section>`;
+    if (!alternatives.length) return "";
     return `<section class="report-alternatives"><h2>Known safe alternatives</h2><p>Ranked only from compatible products already stored on this device.</p><ul>${alternatives.map((item) => `<li><b>${esc(item.name)}</b>${item.brand ? ` · ${esc(item.brand)}` : ""}<span>${esc(item.similarity)}</span><small>${esc(item.reason)}</small></li>`).join("")}</ul></section>`;
   }
   function modalShell() {
@@ -308,7 +314,6 @@
     const preference = sectionHtml("Personal Preferences", evaluation.preferenceItems, "preference", state.expandedSections.preference, offset); offset += evaluation.preferenceItems.length;
     const safe = sectionHtml("Safe Ingredients", evaluation.safeItems, "safe", state.expandedSections.safe, offset);
     rootEl.innerHTML = `<div class="report-view">
-      <header class="report-header"><span>Scan result</span><button type="button" data-action="close" aria-label="Close report">Close</button></header>
       <main class="report-main">
         ${productHtml(scan)}
         <p class="report-question sr-only">Can you eat this?</p>
@@ -366,7 +371,7 @@
     return visible;
   }
   function normalizeSectionLabels() {
-    const labels = { avoid: "NOT SAFE", caution: "UNCERTAIN", preference: "PREFERENCE", safe: "SAFE" };
+    const labels = { avoid: "Not safe", caution: "Uncertain", preference: "Preference", safe: "Safe" };
     rootEl?.querySelectorAll(".report-section").forEach((section) => {
       const label = labels[section.dataset.section];
       const button = section.querySelector(".section-toggle");

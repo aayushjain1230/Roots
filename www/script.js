@@ -194,6 +194,11 @@ function handleLogicalBack() {
     }
   }
   const active = document.querySelector(".view.active")?.id;
+  if (document.body.classList.contains("report-view-active")) {
+    resetScanSession({ reason: "back_from_report" });
+    showView("scanView", { restoreHomeScroll: true });
+    return true;
+  }
   if (active && active !== "scanView") {
     if (history.state?.rootsView === active) history.back();
     else showView("scanView", { restoreHomeScroll: true });
@@ -244,6 +249,45 @@ function hideLabelCamera() {
   labelCameraScreen.hidden = true;
   document.body.classList.remove("capture-active");
 }
+function resetScanSession(options = {}) {
+  const closeReport = options.closeReport !== false;
+  if (closeReport) window.ROOTS_REPORT?.close?.(false);
+  window.ROOTS_SCAN_PROCESSING?.reset?.();
+  window.ROOTS_IMAGE_REVIEW?.dispose?.(false);
+  window.ROOTS_CAMERA?.stop?.();
+  stopBarcodeScanner?.();
+  selectedFile = null;
+  pendingImageReplacement = false;
+  replacementAccepted = false;
+  cameraReviewFallback = false;
+  captureBusy = false;
+  window.ROOTS_REPORT_AI_CONTEXT = "";
+  window.ROOTS_SCAN_PIPELINE?.clearCurrent?.();
+  if (fileInput) fileInput.value = "";
+  if (barcodeInput) barcodeInput.value = "";
+  if (preview) {
+    preview.removeAttribute("src");
+    preview.classList.add("is-hidden");
+  }
+  if (spinner) spinner.classList.add("is-hidden");
+  clearScanStatus();
+  if (result) {
+    result.innerHTML = "";
+    result.style.display = "none";
+  }
+  if (tipBox) tipBox.classList.remove("hidden");
+  if (scanAnimation) scanAnimation.style.display = "";
+  document.body.classList.remove("has-scan-result", "report-view-active", "capture-active");
+  if (labelCameraScreen) labelCameraScreen.hidden = true;
+  document.dispatchEvent(new CustomEvent("roots:scanreset", { detail: { reason: options.reason || "new_scan" } }));
+}
+
+function startFreshScan(message = "", options = {}) {
+  resetScanSession({ reason: "open_scan_entry" });
+  showView("scanView", { restoreHomeScroll: false });
+  openScanEntry(message, options);
+}
+
 let pendingImageReplacement = false;
 let replacementAccepted = false;
 let cameraReviewFallback = false;
@@ -1057,12 +1101,7 @@ function displayResult(scan, opts) {
       root: result,
       historyRecordId: opts?.historyRecordId || historyRecord?.id || "",
       onClose: () => showView("scanView"),
-      onScanAgain: () => {
-        window.ROOTS_REPORT_AI_CONTEXT = "";
-        showView("scanView");
-        fileInput.value = "";
-        barcodeInput.value = "";
-      },
+      onScanAgain: () => startFreshScan(),
       onReview: openIngredientReview,
       onScanCurrentLabel: startLabelCamera,
       onAsk: (context, ingredient) => {
@@ -1626,7 +1665,7 @@ const betaMetricsConsent=document.getElementById("beta-metrics-consent"),betaMet
 if(betaMetricsConsent){betaMetricsConsent.checked=window.ROOTS_METRICS?.consent?.()===true;betaMetricsConsent.addEventListener("change",()=>{const enabled=window.ROOTS_METRICS?.setConsent?.(betaMetricsConsent.checked);if(betaMetricsStatus)betaMetricsStatus.textContent=enabled?"Anonymous beta metrics are enabled on this device.":"Beta metrics are off and local metrics were cleared.";});}
 document.getElementById("clear-beta-metrics")?.addEventListener("click",()=>{window.ROOTS_METRICS?.clear?.();if(betaMetricsStatus)betaMetricsStatus.textContent="Local beta metrics cleared.";});
 document.getElementById("active-profile-summary")?.addEventListener("click", openProfile);
-document.getElementById("scan-entry-btn")?.addEventListener("click", () => openScanEntry());
+document.getElementById("scan-entry-btn")?.addEventListener("click", () => startFreshScan());
 document.getElementById("scan-entry-close")?.addEventListener("click", () => closeModal(scanEntryModal));
 document.getElementById("scan-barcode-photo-btn")?.addEventListener("click", () => {
   closeModal(scanEntryModal);

@@ -82,7 +82,8 @@ test("Home matches the approved editorial dashboard composition", () => {
 test("center Scan opens the real source chooser and exposes Barcode or Label modes", () => {
   const html = read("www/index.html");
   const script = read("www/script.js");
-  assert.match(script, /getElementById\("scan-entry-btn"\)\?\.addEventListener\("click", \(\) => openScanEntry\(\)\)/);
+  assert.match(script, /getElementById\("scan-entry-btn"\)\?\.addEventListener\("click", \(\) => startFreshScan\(\)\)/);
+  assert.match(script, /function startFreshScan[\s\S]*resetScanSession\(\{ reason: "open_scan_entry" \}\)[\s\S]*openScanEntry/);
   assert.match(html, /id="scan-barcode-btn"/);
   assert.match(html, /id="scan-label-btn"/);
   assert.match(html, /class="capture-mode-switch"/);

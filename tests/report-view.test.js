@@ -171,13 +171,18 @@ test("report avoids numeric confidence labels", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "www", "report-view.js"), "utf8");
   assert.doesNotMatch(source, /confidence\s*[:=]\s*["'`]?\d/i);
 });
-test("ingredient rows use full status washes and safe ingredients are never truncated", () => {
+test("scan report uses ROOTS app shell styling and never truncates safe ingredients", () => {
   const report = fs.readFileSync(path.join(__dirname, "..", "www", "report-view.js"), "utf8");
   const script = fs.readFileSync(path.join(__dirname, "..", "www", "script.js"), "utf8");
   const css = fs.readFileSync(path.join(__dirname, "..", "www", "styles.css"), "utf8");
   assert.doesNotMatch(`${report}\n${script}`, /SAFE_PREVIEW|showAllSafe|safe-more|collapseSafe|Show all safe ingredients/);
-  assert.match(css, /\.report-ingredient\.status-avoid\s*\{\s*background:\s*#FBE9E9/);
-  assert.match(css, /\.report-ingredient\.status-caution[\s\S]*background:\s*#FBF0DE/);
-  assert.match(css, /\.report-ingredient\.status-safe\s*\{\s*background:\s*#E7F3EC/);
-  assert.match(script, /function ingredientRowIcon/);
+  assert.doesNotMatch(report, /<header class="report-header"><span>Scan result<\/span>/);
+  assert.match(css, /body\.report-view-active #result_desc[\s\S]*background:\s*transparent/);
+  assert.match(css, /body\.report-view-active \.top-bar,\s*\r?\nbody\.report-view-active \.bottom-dock \{ visibility:\s*visible; \}/);
+  assert.match(css, /body\.report-view-active \.report-view[\s\S]*box-shadow:\s*none/);
+  assert.match(css, /body\.report-view-active \.report-primary-actions \.primary-btn[\s\S]*background:\s*var\(--brand-primary\)/);
+  assert.match(css, /body\.report-view-active \.report-ingredient[\s\S]*background:\s*var\(--surface\)/);
+  assert.doesNotMatch(css, /body\.report-view-active #result_desc \{ background:\s*#151515/);
+  assert.doesNotMatch(css, /body\.report-view-active \.report-view \{[^}]*width:\s*min\(430px/);
+  assert.doesNotMatch(css, /body\.report-view-active \.report-primary-actions \.primary-btn[^}]*#2F3F5F/);
 });

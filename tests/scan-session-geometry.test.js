@@ -121,3 +121,26 @@ test("processing animation has lifecycle, real stages, and reduced-motion behavi
   assert.match(css, /\.processing-animation[^}]*height:\s*210px/);
   assert.match(css, /prefers-reduced-motion:[\s\S]*processing-animation/);
 });
+
+test("new scan entry uses one canonical reset lifecycle", () => {
+  const script = fs.readFileSync("www/script.js", "utf8");
+  assert.match(script, /function resetScanSession\(options = \{\}\)/);
+  assert.match(script, /ROOTS_REPORT\?\.close\?\.\(false\)/);
+  assert.match(script, /ROOTS_SCAN_PROCESSING\?\.reset\?\.\(\)/);
+  assert.match(script, /ROOTS_IMAGE_REVIEW\?\.dispose\?\.\(false\)/);
+  assert.match(script, /ROOTS_SCAN_PIPELINE\?\.clearCurrent\?\.\(\)/);
+  assert.match(script, /fileInput\) fileInput\.value = ""/);
+  assert.match(script, /barcodeInput\) barcodeInput\.value = ""/);
+  assert.match(script, /result\.innerHTML = ""/);
+  assert.match(script, /classList\.remove\("has-scan-result", "report-view-active", "capture-active"\)/);
+  assert.match(script, /function startFreshScan[\s\S]*resetScanSession\(\{ reason: "open_scan_entry" \}\)[\s\S]*openScanEntry/);
+  assert.match(script, /scan-entry-btn"\)\?\.addEventListener\("click", \(\) => startFreshScan\(\)\)/);
+});
+
+test("report scan-another action reuses the canonical new-scan path", () => {
+  const report = fs.readFileSync("www/report-view.js", "utf8");
+  const script = fs.readFileSync("www/script.js", "utf8");
+  assert.match(report, /data-action="scan-again">Scan another product<\/button>/);
+  assert.match(script, /onScanAgain:\s*\(\) => startFreshScan\(\)/);
+  assert.doesNotMatch(script, /onScanAgain:\s*\(\) => \{[\s\S]*fileInput\.value = "";[\s\S]*barcodeInput\.value = "";[\s\S]*\}/);
+});
