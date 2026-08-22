@@ -51,13 +51,15 @@ test("backend uses restricted CORS, fixed provider host, schemas, and rate limit
   const security = read("roots_security.py");
   assert.doesNotMatch(api, /allow_origins=\["\*"\]/);
   assert.match(api, /allow_credentials=False/);
-  for (const route of ["ocr/label", "ocr/menu", "translate", "ai/question", "ai/recipe", "ai/meals", "ai/dining-explanation"]) {
+  for (const route of ["provider/models", "ocr/label", "ocr/menu", "translate", "ai/question", "ai/recipe", "ai/meals", "ai/dining-explanation"]) {
     assert.match(security, new RegExp(route.replace("/", "\\/")));
   }
   assert.match(security, /SlidingLimiter/);
   assert.match(security, /extra="forbid"/);
   assert.match(security, /x-goog-api-key/);
   assert.match(security, /gemini-2\.5-flash/);
+  assert.match(security, /supportedGenerationMethods/);
+  assert.doesNotMatch(security, /GEMINI_API_KEY.*logger|logger.*GEMINI_API_KEY/);
   assert.doesNotMatch(security, /detail=.*exc|str\(exc\)/);
 });
 

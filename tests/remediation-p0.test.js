@@ -99,5 +99,5 @@ test("backend provider errors distinguish config from temporary upstream failure
   const security = fs.readFileSync(path.join(ROOT, "roots_security.py"), "utf8");
   assert.match(security, /provider_config_error/);
   assert.match(security, /status in \{400, 401, 403, 404\}/);
-  assert.match(security, /Gemini provider rejected request with HTTP/);
+  assert.match(security, /Gemini provider error status=%s model=%s message=%s/);
 });

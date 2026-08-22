@@ -38,6 +38,7 @@ logger = logging.getLogger("roots_security")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 PROVIDER_TIMEOUT = min(60, max(5, int(os.getenv("PROVIDER_TIMEOUT_SECONDS", "30"))))
 MAX_IMAGE_BYTES = min(10_000_000, max(100_000, int(os.getenv("MAX_IMAGE_BYTES", "6291456"))))
 MAX_IMAGE_PIXELS = min(40_000_000, max(1_000_000, int(os.getenv("MAX_IMAGE_PIXELS", "20000000"))))
@@ -259,6 +260,18 @@ def _safe_provider_error(status: int | None = None) -> HTTPException:
     return HTTPException(502, detail={"code": "provider_unavailable", "message": "The service is temporarily unavailable. Please try again."})
 
 
+
+def _google_error_message(exc: urllib.error.HTTPError) -> str:
+    try:
+        raw = exc.read(20_000).decode("utf-8", errors="replace")
+        payload = json.loads(raw)
+        message = payload.get("error", {}).get("message", "") if isinstance(payload, dict) else ""
+    except Exception:
+        message = ""
+    message = re.sub(r"[\r\n\t]+", " ", str(message)).strip()
+    message = re.sub(r"\s+", " ", message)
+    return message[:500] or "Google provider returned an error without a message."
+
 def _provider_call(parts: list[dict[str, Any]], *, json_output: bool, temperature: float = 0.0) -> str:
     if not GEMINI_API_KEY:
         raise HTTPException(503, detail={"code": "provider_not_configured", "message": "This online feature is not configured."})
@@ -280,7 +293,8 @@ def _provider_call(parts: list[dict[str, Any]], *, json_output: bool, temperatur
     except HTTPException:
         raise
     except urllib.error.HTTPError as exc:
-        logger.info("Gemini provider rejected request with HTTP %s", exc.code)
+        message = _google_error_message(exc)
+        logger.info("Gemini provider error status=%s model=%s message=%s", exc.code, GEMINI_MODEL, message)
         raise _safe_provider_error(exc.code) from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
         raise _safe_provider_error() from None
@@ -380,6 +394,34 @@ async def _ocr(request: Request, file: UploadFile, prompt: str, route: str, inst
         return schema.model_validate(value).model_dump()
     except ValueError:
         raise _safe_provider_error() from None
+
+
+@router.get("/provider/models")
+async def provider_models() -> dict[str, Any]:
+    if not GEMINI_API_KEY:
+        raise HTTPException(503, detail={"code": "provider_not_configured", "message": "This online feature is not configured."})
+    request = urllib.request.Request(GEMINI_MODELS_URL, headers={"x-goog-api-key": GEMINI_API_KEY}, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=PROVIDER_TIMEOUT) as response:
+            payload = json.loads(response.read(2_000_001))
+    except urllib.error.HTTPError as exc:
+        message = _google_error_message(exc)
+        logger.info("Gemini provider error status=%s model=%s message=%s", exc.code, GEMINI_MODEL, message)
+        raise _safe_provider_error(exc.code) from None
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ValueError):
+        raise _safe_provider_error() from None
+    models = []
+    for item in payload.get("models", []) if isinstance(payload, dict) else []:
+        methods = item.get("supportedGenerationMethods", []) if isinstance(item, dict) else []
+        if "generateContent" not in methods:
+            continue
+        models.append({
+            "name": str(item.get("name", "")),
+            "displayName": str(item.get("displayName", "")),
+            "version": str(item.get("version", "")),
+            "supportedGenerationMethods": [str(method) for method in methods if isinstance(method, str)],
+        })
+    return {"models": models}
 
 
 @router.post("/ocr/label", response_model=LabelEvidence)
