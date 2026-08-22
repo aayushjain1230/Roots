@@ -80,7 +80,7 @@ test("offline infrastructure is loaded, cached, and exposed without fake live cl
   const html = read("index.html"), sw = read("sw.js"), report = read("report-view.js"), restaurants = read("restaurant-ui.js");
   ["sync-queue.js", "offline-knowledge.js", "formulation-tracker.js", "online-enrichment.js", "offline-status.js"].forEach((file) => { assert.match(html, new RegExp(file.replace(".", "\\."))); assert.match(sw, new RegExp(file.replace(".", "\\."))); });
   assert.match(html, /id="offline-settings-summary"/); assert.match(report, /Online verification unavailable|Online manufacturer and certification verification was unavailable/);
-  assert.match(restaurants, /Live hours and distance are unavailable offline/); assert.match(sw, /roots-shell-release-v18/);
+  assert.match(restaurants, /Live hours and distance are unavailable offline/); assert.match(sw, /roots-shell-release-v19/);
 });
 
 test("accuracy corpus catches Jain roots, aliases, Big 9, and bounded OCR corruptions", () => {

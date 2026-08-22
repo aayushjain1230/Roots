@@ -1,8 +1,8 @@
 /* Static app-shell cache only. Provider API and personal data are network-only.
    Supersedes roots-shell-v6b-1 / roots-shell-v6a-1 / roots-shell-v5d-1 / roots-shell-v5c-1 and
    roots-features-v6a-1 / roots-features-v5d-1 / roots-features-v5a-1 after activation. */
-const CACHE = "roots-shell-release-v18";
-const FEATURE_CACHE = "roots-features-release-v18";
+const CACHE = "roots-shell-release-v19";
+const FEATURE_CACHE = "roots-features-release-v19";
 const SHELL = [
   "./",
   "./index.html",
@@ -82,6 +82,14 @@ const SHELL = [
   "./recommendation-engine.js",
   "./smart-search.js",
   "./personalization-view.js",
+  "./restaurant-question-actions.js",
+  "./restaurant-dining-card.js",
+  "./travel-storage.js",
+  "./travel-glossary.js",
+  "./travel-speech.js",
+  "./travel-language-packs.js",
+  "./travel-mode.js",
+  "./travel-card-view.js",
   "./profile-ui-compat.js",
   "./runtime-compat.js",
   "./runtime-fixes-v2.js",

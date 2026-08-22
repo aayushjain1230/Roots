@@ -131,22 +131,23 @@ test("Home visuals use neutral profile text and restrained tool cards", () => {
   assert.doesNotMatch(html, /M12 3 14 8l5 2|airplane|plane-icon/i);
 });
 
-test("Saved uses four accessible categories and renders one panel at a time", () => {
-  assert.equal((html.match(/data-saved-category=/g) || []).length, 4);
-  assert.equal((html.match(/data-saved-panel=/g) || []).length, 4);
+test("Saved uses three intentional categories and renders one panel at a time", () => {
+  assert.equal((html.match(/data-saved-category=/g) || []).length, 3);
+  assert.equal((html.match(/data-saved-panel=/g) || []).length, 3);
   assert.match(html, /role="tablist"/);
   assert.match(html, /role="tabpanel"/);
   assert.match(savedNavigation, /panel\.hidden = panel\.dataset\.savedPanel !== current/);
   assert.match(savedNavigation, /ArrowRight/);
   assert.match(savedNavigation, /ArrowLeft/);
   assert.match(savedNavigation, /sessionStorage/);
-  assert.ok(html.includes("Shopping list"));
+  assert.match(html, /data-saved-category="travel"/);
+  assert.doesNotMatch(html, /<h3>Shopping list<\/h3>|data-saved-category="activity"|data-saved-category="meals"/);
 });
 
-test("major Saved empty states provide a title, explanation, and useful action", () => {
-  assert.match(html, /No saved products yet[\s\S]*Save a product from a scan report[\s\S]*Scan a Product/);
-  assert.match(html, /No saved meals yet[\s\S]*Build an order at a restaurant/);
-  assert.match(html, /No scans yet[\s\S]*recent product checks[\s\S]*Scan a Product/);
+test("major Saved empty states stay simple and action oriented", () => {
+  assert.match(html, /No saved products yet[\s\S]*Scan something to keep it here[\s\S]*Scan a Product/);
+  assert.match(personal, /No saved restaurants yet[\s\S]*Favorite a restaurant to keep it here[\s\S]*Find Restaurants/);
+  assert.match(html, /Prepared travel cards will appear here/);
   assert.match(script, /No matching products[\s\S]*Clear the search or change the filter/);
 });
 
@@ -190,7 +191,7 @@ test("Saved navigation public contract is immutable and bounded", () => {
   };
   context.window = context;
   vm.runInNewContext(savedNavigation, context);
-  assert.deepEqual(Array.from(context.ROOTS_SAVED_NAVIGATION.categories), ["products", "restaurants", "meals", "activity"]);
+  assert.deepEqual(Array.from(context.ROOTS_SAVED_NAVIGATION.categories), ["products", "restaurants", "travel"]);
   assert.equal(context.ROOTS_SAVED_NAVIGATION.getCurrent(), "products");
   assert.ok(Object.isFrozen(context.ROOTS_SAVED_NAVIGATION));
 });

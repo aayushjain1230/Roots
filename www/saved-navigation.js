@@ -1,7 +1,7 @@
 (function (root) {
   "use strict";
   const KEY = "roots-saved-category-v1";
-  const categories = ["products", "restaurants", "meals", "activity"];
+  const categories = ["products", "restaurants", "travel"];
   let current = "products";
 
   function normalize(value) { return categories.includes(value) ? value : "products"; }
@@ -36,7 +36,7 @@
       if (event.key === "ArrowRight") { event.preventDefault(); move(tab, 1); }
       if (event.key === "ArrowLeft") { event.preventDefault(); move(tab, -1); }
       if (event.key === "Home") { event.preventDefault(); select("products", { focus: true }); }
-      if (event.key === "End") { event.preventDefault(); select("activity", { focus: true }); }
+      if (event.key === "End") { event.preventDefault(); select("travel", { focus: true }); }
     });
     document.getElementById("savedView")?.addEventListener("click", (event) => {
       const action = event.target.closest("[data-empty-view]");

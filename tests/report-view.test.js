@@ -180,8 +180,8 @@ test("scan report uses ROOTS app shell styling and never truncates safe ingredie
   assert.match(css, /body\.report-view-active #result_desc[\s\S]*background:\s*transparent/);
   assert.match(css, /body\.report-view-active \.top-bar,\s*\r?\nbody\.report-view-active \.bottom-dock \{ visibility:\s*visible; \}/);
   assert.match(css, /body\.report-view-active \.report-view[\s\S]*box-shadow:\s*none/);
-  assert.match(css, /body\.report-view-active \.report-primary-actions \.primary-btn[\s\S]*background:\s*var\(--brand-primary\)/);
-  assert.match(css, /body\.report-view-active \.report-ingredient[\s\S]*background:\s*var\(--surface\)/);
+  assert.match(css, /body\.report-view-active \.report-primary-actions \.primary-btn[\s\S]*background:\s*var\(--primary-action\)/);
+  assert.match(css, /body\.report-view-active \.report-ingredient[\s\S]*background:\s*color-mix\(in srgb, var\(--row-soft/);
   assert.doesNotMatch(css, /body\.report-view-active #result_desc \{ background:\s*#151515/);
   assert.doesNotMatch(css, /body\.report-view-active \.report-view \{[^}]*width:\s*min\(430px/);
   assert.doesNotMatch(css, /body\.report-view-active \.report-primary-actions \.primary-btn[^}]*#2F3F5F/);

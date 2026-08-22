@@ -145,7 +145,7 @@ async function showView(viewId, options = {}) {
     await window.ROOTS_FEATURES?.ensureForView?.(viewId);
     if (viewId === "savedView") {
       renderSavedProducts(); renderHistory(); window.ROOTS_RESTAURANT_MEMORY?.render?.();
-      window.ROOTS_PERSONALIZATION_VIEW?.renderSavedRestaurants?.();
+      window.ROOTS_PERSONALIZATION_VIEW?.renderSavedRestaurants?.(); window.ROOTS_TRAVEL_VIEW?.refreshSaved?.();
     }
   } catch (_) {
     const status = viewId === "restaurantsView" ? document.getElementById("restaurant-status") : null;
@@ -1480,8 +1480,8 @@ function attachHistorySwipe(cardEl) {
   itemEl.addEventListener("pointercancel", endDrag);
 }
 
-clearHistoryBtn.addEventListener("click", () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); window.dispatchEvent(new CustomEvent("roots:historychange")); });
-historyList.addEventListener("click", e => {
+clearHistoryBtn?.addEventListener("click", () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); window.dispatchEvent(new CustomEvent("roots:historychange")); });
+historyList?.addEventListener("click", e => {
   const phase2cCard = e.target.closest(".phase2c-history");
   if (phase2cCard) {
     const item = getHistory()[Number(phase2cCard.dataset.index)];

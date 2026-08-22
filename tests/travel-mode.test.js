@@ -104,3 +104,25 @@ test("Travel modules are cached but private IndexedDB data is not in Cache Stora
  const sw=source("sw.js");["travel-storage.js","travel-glossary.js","travel-speech.js","travel-language-packs.js","travel-mode.js","travel-card-view.js"].forEach(file=>assert.match(sw,new RegExp(file.replaceAll(".","\\."))));
  assert.match(sw,/roots-shell-v5c-1/);assert.doesNotMatch(sw,/roots-travel-v1|travel-card-[a-z0-9]{6,}|roots-dining-v1/);
 });
+
+test("Travel page creates deterministic saved dining cards from the active profile", async () => {
+ const ctx=load(["connectivity.js","restaurant-dining-card.js","travel-storage.js","travel-glossary.js","travel-language-packs.js","travel-mode.js"],{ROOTS_PROFILE:{getActiveProfile:()=>profile}});
+ const card=await ctx.ROOTS_TRAVEL.createDiningCard({language:"es",destinationLabel:"Madrid"});
+ assert.equal(card.targetLanguage,"es");assert.equal(card.sourceLanguage,"en");assert.equal(card.offlineAvailable,true);assert.equal(card.destinationLabel,"Madrid, Spain");
+ assert.match(card.sourceText,/Peanuts allergy|Ask about MSG|cross-contact|jain/i);assert.match(card.translatedText,/Peanuts|Jain|MSG/i);
+ assert.equal((await ctx.ROOTS_TRAVEL.getSavedCards()).length,1);assert.deepEqual((await ctx.ROOTS_TRAVEL.getSavedCards())[0].profileSnapshot.allergies[0].label,"Peanuts");
+});
+
+test("translation failure preserves the English dining card for offline use", async () => {
+ const ctx=load(["connectivity.js","restaurant-dining-card.js","travel-storage.js","travel-glossary.js","travel-language-packs.js","travel-mode.js"],{ROOTS_PROFILE:{getActiveProfile:()=>profile},BIJ_OCR:{generateText:async()=>{throw new Error("provider down");}}});
+ const card=await ctx.ROOTS_TRAVEL.createDiningCard({language:"fr",destinationLabel:"Paris"});
+ assert.match(card.translationError,/Translation temporarily unavailable/);assert.match(card.sourceText,/Peanuts allergy/);assert.ok(card.translatedText);
+ ctx.ROOTS_CONNECTIVITY.setForTesting("OFFLINE");
+ const saved=(await ctx.ROOTS_TRAVEL.getSavedCards())[0];assert.equal(saved.id,card.id);assert.equal(saved.offlineAvailable,true);assert.match(saved.sourceText,/I cannot eat/);
+});
+
+test("feature loader loads Travel on the Travel page without requiring Restaurants first", () => {
+ const loader=source("feature-loader.js");
+ assert.match(loader,/viewId === "travelView"\) return loadGroup\("travel"\)/);
+ assert.match(loader,/travel: \["restaurant-question-actions\.js", "restaurant-dining-card\.js"/);
+});

@@ -82,3 +82,14 @@ test("theme roles avoid separate hardcoded component palettes", () => {
   assert.match(css, /\[data-theme="dark"\]/);
   assert.match(css, /--color-success:\s*var\(--safe\)/);
 });
+test("ROOTS chrome, buttons, and scan FAB use shared Home-derived styling", () => {
+  const styles = read("www/styles.css");
+  const home = read("www/home.css");
+  assert.match(css, /--button-primary-bg:\s*var\(--primary-action\)/);
+  assert.match(css, /\.bottom-dock \{[^}]*width:\s*min\(100%, 540px\)[^}]*border-radius:\s*24px 24px 0 0/);
+  assert.match(css, /\.dock-btn\.active:not\(\.scan-fab\)[^}]*background:\s*color-mix\(in srgb, var\(--brand-soft\) 62%, var\(--surface\)\)/);
+  assert.match(css, /\.scan-fab \{[\s\S]*background:\s*var\(--primary-action\)/);
+  assert.doesNotMatch(home, /body\[data-active-view="scanView"\] \.scan-fab/);
+  assert.doesNotMatch(styles, /body\[data-active-view="restaurantsView"\] \.scan-fab/);
+  assert.doesNotMatch(styles + home, /\.scan-fab[^{}]*\{[^}]*var\(--brand-accent\)|\.scan-fab[^{}]*\{[^}]*#F08B6C|\.scan-fab[^{}]*\{[^}]*#E8785A/i);
+});

@@ -481,19 +481,6 @@ button.home-restaurant-row.home-hero > .home-hero-arrow { color: #B9E6A4; }
   .home-shortcut-surface svg { width: 37px; height: 37px; }
 }
 
-body[data-active-view="scanView"] .bottom-dock {
-  left: 50%;
-  right: auto;
-  width: min(100%, 540px);
-  transform: translateX(-50%);
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -8px 30px rgb(28 40 35 / .1);
-}
-body[data-active-view="scanView"] .dock-btn.active { color: #0F5138; }
-body[data-active-view="scanView"] .dock-btn.active::before { display: none; }
-body[data-active-view="scanView"] .dock-btn.active:not(.scan-fab) { margin: 8px; border-radius: 14px; background: color-mix(in srgb, #DDEFD7 62%, var(--surface)); }
-body[data-active-view="scanView"] .scan-fab { background: #0F5138; border-color: color-mix(in srgb, #DDEFD7 72%, var(--surface)); }
-
 [data-theme="dark"] .home-header .brand-title h1,
 [data-theme="dark"] .home-header-button { color: #D9B28C; }
 [data-theme="dark"] .home-header .roots-brand-mark { background: #8A5B40; color: #F4E6D8; }

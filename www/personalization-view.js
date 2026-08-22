@@ -44,12 +44,12 @@
     const minutesAgo = latestScanTime ? Math.max(1, Math.round((Date.now() - Date.parse(latestScanTime)) / 60000)) : null;
     const recentDetail = `${scanCount} product${scanCount === 1 ? "" : "s"} scanned${minutesAgo && Number.isFinite(minutesAgo) ? ` · ${minutesAgo} minute${minutesAgo === 1 ? "" : "s"} ago` : ""}`;
     const continuation = recent[0] || recentScans[0]
-      ? { title: "Recent scans", detail: recentDetail, target: "activity" }
+      ? { title: "Recent scans", detail: recentDetail, target: "products" }
       : recommendedMeals[0]
-        ? { title: "Order again", detail: `${recommendedMeals[0].name}${recommendedMeals[0].restaurant?.name ? ` at ${recommendedMeals[0].restaurant.name}` : ""}`, target: "meals" }
+        ? { title: "Order again", detail: `${recommendedMeals[0].name}${recommendedMeals[0].restaurant?.name ? ` at ${recommendedMeals[0].restaurant.name}` : ""}`, target: "restaurants" }
         : favorites[0]
           ? { title: "Saved favorite", detail: favorites[0].name, target: "products" }
-          : { title: "Recent scans", detail: "View your recently scanned products", target: "activity" };
+          : { title: "Recent scans", detail: "View your recently scanned products", target: "products" };
     target.hidden = false;
     target.innerHTML = `<section class="home-personalized-card" aria-labelledby="home-personalized-title">
       <button type="button" class="home-continuation" data-home-destination="savedView" data-saved-target="${continuation.target}">
@@ -62,10 +62,10 @@
     target.hidden = false;
     target.innerHTML = `<section class="home-personalized-card" aria-labelledby="home-personalized-title">
       <div class="section-head with-action"><div><p class="eyebrow">For you</p><h2 id="home-personalized-title">Pick up where you left off</h2></div></div>
-      ${recent.length ? `<section class="personalized-row" aria-labelledby="recent-safe-title"><div class="section-head with-action"><h3 id="recent-safe-title">Recently Safe</h3><button type="button" class="text-btn" data-home-destination="savedView" data-saved-target="activity">View activity</button></div><div class="personalized-scroll">${recent.slice(0, 3).map(productCard).join("")}</div></section>` : ""}
+      ${recent.length ? `<section class="personalized-row" aria-labelledby="recent-safe-title"><div class="section-head with-action"><h3 id="recent-safe-title">Recently Safe</h3><button type="button" class="text-btn" data-home-destination="savedView" data-saved-target="products">View saved</button></div><div class="personalized-scroll">${recent.slice(0, 3).map(productCard).join("")}</div></section>` : ""}
       ${favorites.length ? `<section class="personalized-row" aria-labelledby="home-favorites-title"><div class="section-head with-action"><h3 id="home-favorites-title">Favorites</h3><button type="button" class="text-btn" data-home-destination="savedView" data-saved-target="products">Manage</button></div><div class="personalized-scroll">${favorites.slice(0, 3).map(productCard).join("")}</div></section>` : ""}
-      ${recommendedMeals.length ? `<section class="personalized-row" aria-labelledby="recommended-orders-title"><div class="section-head with-action"><h3 id="recommended-orders-title">Recommended orders</h3><button type="button" class="text-btn" data-home-destination="savedView" data-saved-target="meals">Saved meals</button></div><div class="personalized-scroll">${recommendedMeals.slice(0, 2).map((item) => `<button type="button" class="personalized-item" data-home-meal="${esc(item.id)}"><span class="personalized-placeholder" aria-hidden="true">✓</span><span><b>${esc(item.name)}</b><small>${esc(item.restaurant?.name || "")}</small><small>${esc(item.reason)}</small></span></button>`).join("")}</div></section>` : ""}
-      ${recentScans.length > 1 ? `<section class="continue-shopping" aria-labelledby="continue-shopping-title"><div><h3 id="continue-shopping-title">Continue Shopping</h3><p>Review your latest scans or scan the next item.</p></div><button type="button" class="ghost-btn" data-home-destination="savedView" data-saved-target="activity">Recent scans</button></section>` : ""}
+      ${recommendedMeals.length ? `<section class="personalized-row" aria-labelledby="recommended-orders-title"><div class="section-head with-action"><h3 id="recommended-orders-title">Recommended orders</h3><button type="button" class="text-btn" data-home-destination="savedView" data-saved-target="restaurants">Saved meals</button></div><div class="personalized-scroll">${recommendedMeals.slice(0, 2).map((item) => `<button type="button" class="personalized-item" data-home-meal="${esc(item.id)}"><span class="personalized-placeholder" aria-hidden="true">✓</span><span><b>${esc(item.name)}</b><small>${esc(item.restaurant?.name || "")}</small><small>${esc(item.reason)}</small></span></button>`).join("")}</div></section>` : ""}
+      ${recentScans.length > 1 ? `<section class="continue-shopping" aria-labelledby="continue-shopping-title"><div><h3 id="continue-shopping-title">Continue Shopping</h3><p>Review your latest scans or scan the next item.</p></div><button type="button" class="ghost-btn" data-home-destination="savedView" data-saved-target="products">Recent scans</button></section>` : ""}
       <details class="home-personalized-tools"><summary>Search saved ROOTS data${state.preferences.groceryStore ? ` · ${esc(state.preferences.groceryStore)}` : ""}</summary>
       <form id="smart-search-form" class="smart-search-form" role="search">
         <label for="smart-search-input">Search ROOTS</label>

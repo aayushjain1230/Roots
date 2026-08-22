@@ -17,7 +17,7 @@
       "restaurant-dining-assistant-view.js", "restaurant-memory-view.js", "restaurant-order-builder.js",
       "restaurant-detail-view.js", "restaurant-results-view.js", "restaurant-ui.js",
     ],
-    travel: ["travel-storage.js", "travel-glossary.js", "travel-speech.js", "travel-language-packs.js", "travel-mode.js", "travel-card-view.js"],
+    travel: ["restaurant-question-actions.js", "restaurant-dining-card.js", "travel-storage.js", "travel-glossary.js", "travel-speech.js", "travel-language-packs.js", "travel-mode.js", "travel-card-view.js"],
   });
   document.querySelectorAll("script[src]").forEach((node) => loaded.add(new URL(node.src, location.href).pathname.split("/").pop()));
   function loadScript(file) {
@@ -44,7 +44,8 @@
   async function ensureForView(viewId) {
     if (["assistantView", "askRootsView", "recipeView", "mealsView"].includes(viewId)) return loadGroup("assistant");
     if (viewId === "restaurantsView") return loadGroup("restaurants");
-    if (viewId === "savedView") { await loadGroup("restaurants"); return loadGroup("saved"); }
+    if (viewId === "travelView") return loadGroup("travel");
+    if (viewId === "savedView") { await loadGroup("restaurants"); await loadGroup("travel"); return loadGroup("saved"); }
     return [];
   }
   function preload(name) {

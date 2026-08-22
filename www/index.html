@@ -171,9 +171,17 @@
 
     <section id="travelView" class="view tool-page travel-view" aria-labelledby="travel-title" hidden aria-hidden="true" inert>
       <header class="tool-page-header"><button type="button" class="tool-back" data-tool-back aria-label="Back to Home">← <span>Back</span></button><h2 id="travel-title" tabindex="-1">Travel Mode</h2></header>
-      <p class="tool-page-intro">Prepare a dining card for another language.</p>
+      <p class="tool-page-intro">Create a dining card you can show at restaurants.</p>
       <p class="tool-profile-context" data-tool-profile-context></p>
-      <div class="tool-workspace travel-launch"><p>Choose a destination, language, and profile in the guided travel setup.</p><button type="button" class="primary-btn" data-open-travel-mode>Continue</button></div>
+      <div class="tool-workspace travel-page-card" aria-labelledby="travel-card-create-title">
+        <div class="section-head"><div><h3 id="travel-card-create-title">Dining card</h3><p class="muted">Roots uses your active profile automatically. You do not need to re-enter restrictions.</p></div></div>
+        <label for="travel-page-language">Destination language<select id="travel-page-language"><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="hi">Hindi</option><option value="gu">Gujarati</option><option value="ja">Japanese</option><option value="ar">Arabic</option><option value="he">Hebrew</option><option value="it">Italian</option><option value="de">German</option><option value="ko">Korean</option><option value="zh">Mandarin Chinese</option></select></label>
+        <label for="travel-page-destination">Destination / city (optional)<input id="travel-page-destination" type="text" maxlength="120" autocomplete="address-level2" placeholder="Madrid, Paris, Ahmedabad…"></label>
+        <div class="travel-page-actions"><button id="travel-create-card" type="button" class="primary-btn">Create dining card</button><button type="button" class="secondary-btn" data-open-travel-mode>Guided setup</button></div>
+        <p id="travel-page-status" class="muted" role="status" aria-live="polite"></p>
+        <section id="travel-current-card" class="travel-current-card" hidden></section>
+      </div>
+      <section class="tool-workspace travel-saved-section" aria-labelledby="travel-saved-title"><div class="section-head with-action"><div><h3 id="travel-saved-title">Recent / Saved Dining Cards</h3><p class="muted">Saved cards open offline after they are created.</p></div><button type="button" class="text-btn" data-saved-target="travel" data-home-destination="savedView">View saved</button></div><div id="travel-page-saved-cards"><p class="empty-state">Saved dining cards will appear here.</p></div></section>
     </section>
 
     <section id="restaurantsView" class="view" aria-labelledby="restaurants-title">
@@ -184,7 +192,7 @@
             <path d="M9.2 9.2c-.4 3-2 5.2-4.7 7.1M14.8 9.2c.4 3 2 5.2 4.7 7.1M12 10v10"></path>
             <path d="M12 13.5c-2.5 1.1-4.1 3-5 5.5M12 13.5c2.5 1.1 4.1 3 5 5.5M12 17l-2 4M12 17l2 4"></path>
           </svg>
-          <span class="home-brand-copy"><span class="restaurant-brand-name">Roots</span><small>Restaurants</small></span>
+          <span class="home-brand-copy"><span class="roots-brand-wordmark">Roots</span><small>Restaurants</small></span>
         </div>
       </header>
       <header class="restaurant-header">
@@ -267,35 +275,22 @@
     </section>
 
     <section id="savedView" class="view" aria-labelledby="saved-title">
-      <div class="section-head"><h2 id="saved-title">Saved</h2><p class="muted">Products, meals, restaurant orders, and notes stay on this device.</p></div>
+      <div class="section-head"><h2 id="saved-title">Saved</h2><p class="muted">Things you intentionally saved stay on this device.</p></div>
       <div class="saved-category-tabs" role="tablist" aria-label="Saved categories">
         <button id="saved-tab-products" type="button" role="tab" aria-selected="true" aria-controls="saved-panel-products" data-saved-category="products">Products</button>
         <button id="saved-tab-restaurants" type="button" role="tab" aria-selected="false" aria-controls="saved-panel-restaurants" data-saved-category="restaurants">Restaurants</button>
-        <button id="saved-tab-meals" type="button" role="tab" aria-selected="false" aria-controls="saved-panel-meals" data-saved-category="meals">Meals</button>
-        <button id="saved-tab-activity" type="button" role="tab" aria-selected="false" aria-controls="saved-panel-activity" data-saved-category="activity">Activity</button>
+        <button id="saved-tab-travel" type="button" role="tab" aria-selected="false" aria-controls="saved-panel-travel" data-saved-category="travel">Travel</button>
       </div>
       <div id="saved-panel-products" class="saved-category-panel" role="tabpanel" aria-labelledby="saved-tab-products" data-saved-panel="products">
-        <div class="saved-section"><div class="section-head"><h3>Favorite products</h3><p class="muted">Explicit favorites are available offline.</p></div><div id="favoriteProductsList" class="favorite-products-list"></div></div>
-        <div class="saved-section"><div class="section-head"><h3>Saved products</h3></div><div class="saved-product-controls"><label for="saved-product-search">Search products</label><input id="saved-product-search" type="search" maxlength="120" placeholder="Product or brand"><label for="saved-product-filter">Filter</label><select id="saved-product-filter"><option value="">All results</option><option value="favorite">Favorites</option><option value="SAFE">Safe</option><option value="CAUTION">Caution</option><option value="AVOID">Avoid</option></select></div><div id="savedProductsList" class="saved-products-list"><div class="empty-state"><h4>No saved products yet</h4><p>Save a product from a scan report to find it here.</p><button type="button" class="primary-btn" data-empty-view="scanView">Scan a Product</button></div></div></div>
-        <div class="saved-section"><div class="section-head with-action"><h3>Shopping list</h3><button id="shopClear" class="text-btn" type="button">Clear</button></div><div class="tag-add-row"><input type="text" id="shopInput" class="assistant-input" placeholder="Add an item…" autocomplete="off" maxlength="120"><button id="shopAdd" class="add-btn" type="button" aria-label="Add item">+</button></div><button id="shopSuggest" class="ghost-btn full" type="button">Suggest products for my diet</button><div id="shopSuggestions" class="shop-suggestions" aria-live="polite"></div><div id="shoppingList" class="shop-list"></div></div>
+        <div class="saved-section"><div class="section-head"><h3>Saved Products</h3></div><div class="saved-product-controls"><label for="saved-product-search">Search products</label><input id="saved-product-search" type="search" maxlength="120" placeholder="Product or brand"><label for="saved-product-filter">Filter</label><select id="saved-product-filter"><option value="">All results</option><option value="favorite">Favorites</option><option value="SAFE">Safe</option><option value="CAUTION">Caution</option><option value="AVOID">Avoid</option></select></div><div id="favoriteProductsList" class="favorite-products-list" hidden></div><div id="savedProductsList" class="saved-products-list"><div class="empty-state"><h4>No saved products yet</h4><p>Scan something to keep it here.</p><button type="button" class="primary-btn" data-empty-view="scanView">Scan a Product</button></div></div></div>
       </div>
       <div id="saved-panel-restaurants" class="saved-category-panel" role="tabpanel" aria-labelledby="saved-tab-restaurants" data-saved-panel="restaurants" hidden>
-        <div class="saved-section"><div class="section-head"><h3>Saved restaurants</h3></div><div id="savedRestaurantsList" class="saved-restaurants-list"></div></div>
-        <div class="saved-section"><div class="section-head"><h3>Saved restaurant questions</h3></div><div id="savedQuestionSets" class="saved-question-sets"><p class="empty-state">Question sets you save will appear here.</p></div></div>
-        <div class="saved-section"><div class="section-head with-action"><h3>Travel cards and language packs</h3><button type="button" class="text-btn" data-open-travel-mode>Open Travel Mode</button></div><div id="savedTravelData"><p class="empty-state">Prepared travel cards will appear here.</p></div></div>
+        <div class="saved-section"><div class="section-head"><h3>Saved Restaurants</h3></div><div id="savedRestaurantsList" class="saved-restaurants-list"></div></div>
       </div>
-      <div id="saved-panel-meals" class="saved-category-panel" role="tabpanel" aria-labelledby="saved-tab-meals" data-saved-panel="meals" hidden>
-        <div class="saved-section restaurant-memory-section" aria-labelledby="saved-meals-title"><div class="section-head"><h3 id="saved-meals-title">Saved meals</h3></div>
-        <div class="saved-meal-controls"><label for="saved-meal-search">Search meals</label><input id="saved-meal-search" type="search" maxlength="120" placeholder="Meal, restaurant, dish, or modifier">
-          <label for="saved-meal-filter">Filter</label><select id="saved-meal-filter"><option value="">Active meals</option><option value="needs_recheck">Needs recheck</option><option value="BEST_CHOICE">Best Choice when saved</option><option value="COMPATIBLE">Compatible when saved</option><option value="NEEDS_CONFIRMATION">Needs Confirmation</option><option value="AVOID">Avoid</option><option value="archived">Archived</option></select>
-          <label for="saved-meal-sort">Sort</label><select id="saved-meal-sort"><option value="recently_saved">Recently saved</option><option value="recently_used">Recently used</option><option value="restaurant">Restaurant</option><option value="meal_name">Meal name</option><option value="needs_recheck">Needs recheck</option><option value="most_used">Most used</option></select>
-        </div><div id="savedMealsList" class="saved-meals-list" aria-live="polite"><div class="memory-empty"><h4>No saved meals yet</h4><p>Build an order at a restaurant and save it for next time.</p></div></div>
-        </div>
+      <div id="saved-panel-travel" class="saved-category-panel" role="tabpanel" aria-labelledby="saved-tab-travel" data-saved-panel="travel" hidden>
+        <div class="saved-section"><div class="section-head with-action"><div><h3>Saved dining cards</h3><p class="muted">Open saved cards offline when you travel.</p></div><button type="button" class="text-btn" data-open-travel-mode>New card</button></div><div id="savedTravelData"><p class="empty-state">Prepared travel cards will appear here.</p></div></div>
       </div>
-      <div id="saved-panel-activity" class="saved-category-panel" role="tabpanel" aria-labelledby="saved-tab-activity" data-saved-panel="activity" hidden>
-        <div class="saved-section"><div class="section-head with-action"><h3>Scan history</h3><button id="clear-history" class="text-btn" type="button">Clear</button></div><div id="historyList" class="history-list"><div class="empty-state"><h4>No scans yet</h4><p>Your recent product checks will appear here.</p><button type="button" class="primary-btn" data-empty-view="scanView">Scan a Product</button></div></div></div>
-        <div class="saved-section"><div class="section-head"><h3>Restaurant order history</h3></div><div id="restaurantOrderHistory" class="restaurant-order-history"><div class="memory-empty"><h4>No restaurant orders yet</h4><p>Orders you mark as completed will appear here.</p></div></div></div>
-      </div>
+      <div class="legacy-saved-hooks" hidden aria-hidden="true"><button id="clear-history" type="button">Clear</button><div id="historyList"></div><div id="savedQuestionSets"></div><div id="savedMealsList"></div><div id="restaurantOrderHistory"></div><input id="shopInput" maxlength="120"><button id="shopAdd" type="button"></button><button id="shopClear" type="button"></button><button id="shopSuggest" type="button"></button><div id="shopSuggestions"></div><div id="shoppingList"></div><input id="saved-meal-search" maxlength="120"><select id="saved-meal-filter"></select><select id="saved-meal-sort"></select></div>
     </section>
   </main>
 

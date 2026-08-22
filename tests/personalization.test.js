@@ -98,7 +98,7 @@ test("smart search spans local products, restaurants, meals, history, and ingred
 test("Phase 4H UI and offline shell are wired without network or AI calls", () => {
   const index = source("index.html"), view = source("personalization-view.js"), engine = source("recommendation-engine.js"), sw = source("sw.js");
   assert.match(index, /personalized-home/);
-  assert.match(index, /Favorite products/);
+  assert.match(index, /Saved Products/);
   assert.match(view, /grocery-mode-store/);
   assert.match(index, /personalization-storage\.js/);
   assert.match(source("restaurant-detail-view.js"), /data-favorite-dish/);
